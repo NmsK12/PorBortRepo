@@ -24,11 +24,25 @@ class IntranetClient:
 
     async def start(self) -> None:
         if self._client is None:
-            timeout = httpx.Timeout(30.0, connect=30.0)
+            timeout = httpx.Timeout(60.0, connect=30.0, read=60.0, write=30.0)
+            # Headers más completos para simular navegador real
+            headers = {
+                **self._settings.default_headers,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "same-origin",
+                "Cache-Control": "max-age=0",
+            }
             self._client = httpx.AsyncClient(
-                headers=self._settings.default_headers,
+                headers=headers,
                 timeout=timeout,
                 follow_redirects=True,
+                limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
             )
 
     async def stop(self) -> None:
@@ -49,15 +63,21 @@ class IntranetClient:
             "txtClave": self._settings.intranet_password,
         }
 
-        # Warmup GET opcional para cookies
+        # Warmup GET para cookies y simular navegador real
         try:
+            # Primero visitar la página principal
+            await self._client.get("https://app.munitacna.gob.pe/intranet/main")
+            # Luego la página de login
             await self._client.get(self._settings.login_url)
         except Exception:
             pass
 
-        resp = await self._client.post(self._settings.login_url, data=form_data)
-        resp.raise_for_status()
-        self._is_logged_in = True
+        try:
+            resp = await self._client.post(self._settings.login_url, data=form_data)
+            resp.raise_for_status()
+            self._is_logged_in = True
+        except Exception as e:
+            raise Exception(f"Error en login: {str(e)}")
 
     async def consultar_dni(self, dni: str) -> Dict[str, Any]:
         await self.ensure_login()
@@ -65,8 +85,11 @@ class IntranetClient:
 
         # El portal espera el campo 'txtDni'
         payload = {"txtDni": dni}
-        resp = await self._client.post(self._settings.dni_api_url, data=payload)
-        resp.raise_for_status()
+        try:
+            resp = await self._client.post(self._settings.dni_api_url, data=payload)
+            resp.raise_for_status()
+        except Exception as e:
+            raise Exception(f"Error consultando DNI: {str(e)}")
 
         html = resp.text
         soup = BeautifulSoup(html, "lxml")
