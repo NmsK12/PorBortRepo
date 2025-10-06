@@ -611,7 +611,7 @@ class RespaldoDoxBot:
             import os
             os.remove(file_path)
     
-    def send_document_with_image(self, chat_id, file_path, caption=None):
+    def send_document_with_image(self, chat_id, file_path, caption=None, reply_to_message_id=None):
         """Enviar documento con imagen adjunta a Telegram"""
         try:
             # Leer el documento
@@ -622,6 +622,8 @@ class RespaldoDoxBot:
                     'caption': caption,
                     'parse_mode': 'HTML'
                 }
+                if reply_to_message_id:
+                    data['reply_to_message_id'] = reply_to_message_id
                 
                 # Enviar como documento
                 url = f"{TELEGRAM_API_URL}/sendDocument"
@@ -663,7 +665,8 @@ class RespaldoDoxBot:
                     "❌ <b>Error:</b> Formato incorrecto.\n\n"
                     "📝 <b>Uso correcto:</b> `/nm Pedro|Castillo|Terrones`\n"
                     "📝 <b>Ejemplo:</b> `/nm Juan|Perez|Gonzalez`\n\n"
-                    "🤖 *Respaldodox*"
+                    "🤖 *Respaldodox*",
+                    reply_to_message_id=message_id
                 )
                 return
             
@@ -686,7 +689,8 @@ class RespaldoDoxBot:
                 f"🔍 <b>Buscando por nombres...</b>\n"
                 f"👤 Nombres: `{nombres}`\n"
                 f"👥 Apellidos: `{apellidos}`\n"
-                "⏳ Procesando consulta..."
+                "⏳ Procesando consulta...",
+                reply_to_message_id=message_id
             )
             
             try:
@@ -706,22 +710,22 @@ class RespaldoDoxBot:
                         file_path = self.crear_archivo_nombres(nombres_data['data']['results'], f"{nombres}|{apellidos}", user_display)
                         
                         # Enviar archivo con imagen
-                        self.send_document_with_image(chat_id, file_path, "📄 <b>Resultados de búsqueda por nombres</b>")
+                        self.send_document_with_image(chat_id, file_path, "📄 <b>Resultados de búsqueda por nombres</b>", reply_to_message_id=message_id)
                         
                         # Eliminar mensaje de carga
                         if loading_msg and 'result' in loading_msg:
-                            message_id = loading_msg['result']['message_id']
-                            self.delete_message(chat_id, message_id)
+                            loading_message_id = loading_msg['result']['message_id']
+                            self.delete_message(chat_id, loading_message_id)
                     else:
                         # Mostrar resultados en el chat
                         if loading_msg and 'result' in loading_msg:
-                            message_id = loading_msg['result']['message_id']
-                            self.edit_message(chat_id, message_id, response, include_image=True)
+                            loading_message_id = loading_msg['result']['message_id']
+                            self.edit_message(chat_id, loading_message_id, response, include_image=True)
                 else:
                     if loading_msg and 'result' in loading_msg:
-                        message_id = loading_msg['result']['message_id']
+                        loading_message_id = loading_msg['result']['message_id']
                         self.edit_message(
-                            chat_id, message_id,
+                            chat_id, loading_message_id,
                             f"❌ <b>No se encontraron resultados</b> para: `{nombres}|{apellidos}`\n\n"
                             "🔍 Verifica los nombres e intenta nuevamente.\n\n"
                             f"🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>",
@@ -731,9 +735,9 @@ class RespaldoDoxBot:
             except requests.exceptions.Timeout:
                 logger.error(f"Timeout al consultar nombres {nombres}|{apellidos}")
                 if loading_msg and 'result' in loading_msg:
-                    message_id = loading_msg['result']['message_id']
+                    loading_message_id = loading_msg['result']['message_id']
                     self.edit_message(
-                        chat_id, message_id,
+                        chat_id, loading_message_id,
                         f"⏰ <b>Timeout en la consulta</b> de nombres: `{nombres}|{apellidos}`\n\n"
                         "🔄 La API está tardando más de 30 segundos.\n"
                         "💡 Intenta nuevamente en unos momentos.\n\n"
@@ -743,9 +747,9 @@ class RespaldoDoxBot:
             except Exception as e:
                 logger.error(f"Error al consultar nombres {nombres}|{apellidos}: {e}")
                 if loading_msg and 'result' in loading_msg:
-                    message_id = loading_msg['result']['message_id']
+                    loading_message_id = loading_msg['result']['message_id']
                     self.edit_message(
-                        chat_id, message_id,
+                        chat_id, loading_message_id,
                         f"❌ <b>Error al consultar</b> los nombres: `{nombres}|{apellidos}`\n\n"
                         "🔄 Intenta nuevamente en unos momentos.\n\n"
                         f"🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>",
