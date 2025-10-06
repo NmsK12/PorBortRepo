@@ -23,6 +23,10 @@ logger = logging.getLogger(__name__)
 # Diccionario para controlar spam (user_id: timestamp)
 user_cooldowns = {}
 
+# Sistema de reintentos para APIs
+MAX_RETRIES = 3  # Máximo de reintentos por consulta
+RETRY_DELAY = 2  # Segundos de espera entre reintentos
+
 # Sistema de cola eliminado - respuestas directas
 
 class RespaldoDoxBot:
@@ -49,6 +53,44 @@ class RespaldoDoxBot:
         # Escapar caracteres HTML
         text = str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
         return text
+    
+    def consultar_api_con_reintentos(self, url, params=None, timeout=30, api_name="API"):
+        """Consultar API con sistema de reintentos automáticos"""
+        for intento in range(1, MAX_RETRIES + 1):
+            try:
+                logger.info(f"🔄 {api_name} - Intento {intento}/{MAX_RETRIES}")
+                
+                if params:
+                    response = requests.get(url, params=params, timeout=timeout)
+                else:
+                    response = requests.get(url, timeout=timeout)
+                
+                logger.info(f"📡 {api_name} - Status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    logger.info(f"✅ {api_name} - Respuesta exitosa en intento {intento}")
+                    return data
+                else:
+                    logger.warning(f"⚠️ {api_name} - Error {response.status_code} en intento {intento}")
+                    if intento < MAX_RETRIES:
+                        logger.info(f"⏳ Esperando {RETRY_DELAY} segundos antes del siguiente intento...")
+                        time.sleep(RETRY_DELAY)
+                    
+            except requests.exceptions.Timeout:
+                logger.warning(f"⏰ {api_name} - Timeout en intento {intento}")
+                if intento < MAX_RETRIES:
+                    logger.info(f"⏳ Esperando {RETRY_DELAY} segundos antes del siguiente intento...")
+                    time.sleep(RETRY_DELAY)
+                    
+            except Exception as e:
+                logger.error(f"❌ {api_name} - Error en intento {intento}: {e}")
+                if intento < MAX_RETRIES:
+                    logger.info(f"⏳ Esperando {RETRY_DELAY} segundos antes del siguiente intento...")
+                    time.sleep(RETRY_DELAY)
+        
+        logger.error(f"💥 {api_name} - Falló después de {MAX_RETRIES} intentos")
+        return None
     
     def is_admin(self, user_id):
         """Verificar si el usuario es administrador"""
@@ -317,25 +359,7 @@ class RespaldoDoxBot:
         url = f"{API_BASE_URL}?dni={dni}&key={API_KEY}"
         logger.info(f"URL construida para DNI: {url}")
         
-        try:
-            logger.info(f"Consultando API DNI: {url}")
-            response = requests.get(url, timeout=30)
-            logger.info(f"Respuesta API DNI - Status: {response.status_code}")
-            
-            if response.status_code == 200:
-                data = response.json()
-                logger.info(f"Datos recibidos de API DNI: {data}")
-                return data
-            else:
-                logger.error(f"API DNI error: {response.status_code}")
-                logger.error(f"Respuesta completa: {response.text}")
-                return None
-        except requests.exceptions.Timeout:
-            logger.error(f"Timeout al consultar API DNI: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Error al consultar API DNI: {e}")
-            return None
+        return self.consultar_api_con_reintentos(url, api_name="DNI")
     
     def formatear_respuesta_dni(self, data, dni, user_display):
         """Formatear la respuesta de la API para mostrar"""
@@ -541,29 +565,11 @@ class RespaldoDoxBot:
             'key': '9d2c423573b857e46235f9c50645f'
         }
         
-        try:
-            logger.info(f"Consultando API nombres: {url}")
-            logger.info(f"Parámetros: {params}")
-            # Construir URL completa para debug
-            full_url = f"{url}?nombres={nombres}&apellidos={apellidos}&key=9d2c423573b857e46235f9c50645f"
-            logger.info(f"URL completa nombres: {full_url}")
-            response = requests.get(url, params=params, timeout=30)
-            logger.info(f"Respuesta API nombres - Status: {response.status_code}")
-            
-            if response.status_code == 200:
-                data = response.json()
-                logger.info(f"Datos recibidos de API nombres: {data}")
-                return data
-            else:
-                logger.error(f"API nombres error: {response.status_code}")
-                logger.error(f"Respuesta completa: {response.text}")
-                return None
-        except requests.exceptions.Timeout:
-            logger.error(f"Timeout al consultar API de nombres: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Error al consultar API de nombres: {e}")
-            return None
+        logger.info(f"Parámetros nombres: {params}")
+        full_url = f"{url}?nombres={nombres}&apellidos={apellidos}&key=9d2c423573b857e46235f9c50645f"
+        logger.info(f"URL completa nombres: {full_url}")
+        
+        return self.consultar_api_con_reintentos(url, params=params, api_name="NOMBRES")
     
     def formatear_respuesta_nombres(self, data, nombres_busqueda, user_display):
         """Formatear la respuesta de búsqueda por nombres"""
@@ -885,17 +891,7 @@ class RespaldoDoxBot:
         url = "http://161.132.51.34:1520/api/osipteldb"
         params = {'tel': numero}
         
-        try:
-            response = requests.get(url, params=params, timeout=30)
-            if response.status_code == 200:
-                data = response.json()
-                return data
-            else:
-                logger.error(f"API error: {response.status_code}")
-                return None
-        except Exception as e:
-            logger.error(f"Error al consultar API de teléfonos: {e}")
-            return None
+        return self.consultar_api_con_reintentos(url, params=params, api_name="TELÉFONO")
     
     def consultar_arbol_genealogico(self, dni):
         """Consultar árbol genealógico por DNI en la API"""
@@ -905,22 +901,8 @@ class RespaldoDoxBot:
             'key': 'd59c297a6fd28f7e4387720e810a66b5'
         }
         
-        try:
-            # Aumentar timeout a 30 segundos para esta API lenta
-            response = requests.get(url, params=params, timeout=30)
-            if response.status_code == 200:
-                data = response.json()
-                logger.info(f"API árbol genealógico respondió correctamente para DNI: {dni}")
-                return data
-            else:
-                logger.error(f"Error en API de árbol genealógico: {response.status_code}")
-                return None
-        except requests.exceptions.Timeout:
-            logger.error(f"Timeout en API de árbol genealógico para DNI: {dni}")
-            return None
-        except Exception as e:
-            logger.error(f"Error al consultar API de árbol genealógico: {e}")
-            return None
+        logger.info(f"Consultando árbol genealógico para DNI: {dni}")
+        return self.consultar_api_con_reintentos(url, params=params, api_name="ÁRBOL GENEALÓGICO")
     
     def formatear_respuesta_telefono(self, data, numero, user_display):
         """Formatear la respuesta de consulta por teléfono"""
