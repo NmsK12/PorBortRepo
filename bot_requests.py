@@ -67,6 +67,8 @@ class RespaldoDoxBot:
             parametros = consulta['parametros']
             loading_msg = consulta['loading_msg']
             
+            logger.info(f"Ejecutando consulta tipo: {tipo} para usuario: {user_id}")
+            
             if tipo == 'dni':
                 self.execute_dni_consulta(chat_id, user_id, user_info, parametros['dni'], loading_msg)
             elif tipo == 'nombres':
@@ -75,8 +77,12 @@ class RespaldoDoxBot:
                 self.execute_telefono_consulta(chat_id, user_id, user_info, parametros['numero'], loading_msg)
             elif tipo == 'arbol':
                 self.execute_arbol_consulta(chat_id, user_id, user_info, parametros['dni'], loading_msg)
+            else:
+                logger.error(f"Tipo de consulta desconocido: {tipo}")
         except Exception as e:
             logger.error(f"Error ejecutando consulta: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
         
     def send_message(self, chat_id, text, reply_markup=None, include_image=True):
         """Enviar mensaje a Telegram"""
@@ -1067,22 +1073,32 @@ class RespaldoDoxBot:
     def execute_arbol_consulta(self, chat_id, user_id, user_info, dni, loading_msg):
         """Ejecutar consulta árbol genealógico en la cola"""
         try:
+            logger.info(f"Iniciando consulta árbol genealógico para DNI: {dni}")
+            
             # Obtener nombre de usuario para mostrar
             user_display = self.get_user_display_name(user_info)
+            logger.info(f"Usuario display: {user_display}")
             
             # Consultar la API
             arbol_data = self.consultar_arbol_genealogico(dni)
+            logger.info(f"Datos recibidos de API: {arbol_data is not None}")
             
             if arbol_data:
                 # Verificar si la respuesta tiene familiares
                 if arbol_data.get('FAMILIARES') and len(arbol_data['FAMILIARES']) > 0:
+                    logger.info(f"Encontrados {len(arbol_data['FAMILIARES'])} familiares")
                     # Formatear respuesta
                     response = self.formatear_respuesta_arbol_genealogico(arbol_data, dni, user_display)
+                    logger.info(f"Respuesta formateada, longitud: {len(response)}")
                     
                     # Editar mensaje de carga
                     if loading_msg and 'result' in loading_msg:
                         message_id = loading_msg['result']['message_id']
+                        logger.info(f"Editando mensaje {message_id} en chat {chat_id}")
                         self.edit_message(chat_id, message_id, response, include_image=True)
+                        logger.info("Mensaje editado exitosamente")
+                    else:
+                        logger.error("No se pudo obtener message_id del loading_msg")
                 else:
                     # No hay familiares en la respuesta
                     if loading_msg and 'result' in loading_msg:
