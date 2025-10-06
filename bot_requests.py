@@ -2,8 +2,7 @@ import requests
 import json
 import time
 import logging
-import threading
-from queue import Queue
+# Importaciones de threading y queue eliminadas - respuestas directas
 import base64
 from threading import Thread
 import os
@@ -24,16 +23,12 @@ logger = logging.getLogger(__name__)
 # Diccionario para controlar spam (user_id: timestamp)
 user_cooldowns = {}
 
-# Sistema de cola para consultas
-consulta_queue = Queue()
-consulta_processing = False
-consulta_thread = None
+# Sistema de cola eliminado - respuestas directas
 
 class RespaldoDoxBot:
     def __init__(self):
         self.last_update_id = 0
         self.running = True
-        self.start_consulta_processor()
         
         # Configuración de seguridad
         self.ADMIN_ID = 6862902399  # Tu ID de administrador
@@ -139,55 +134,7 @@ class RespaldoDoxBot:
         
         self.send_message(chat_id, message, include_image=True)
     
-    def start_consulta_processor(self):
-        """Iniciar el procesador de consultas en cola"""
-        global consulta_processing, consulta_thread
-        if not consulta_processing:
-            consulta_processing = True
-            consulta_thread = threading.Thread(target=self.process_consulta_queue, daemon=True)
-            consulta_thread.start()
-            logger.info("🔄 Procesador de consultas iniciado")
-    
-    def process_consulta_queue(self):
-        """Procesar consultas en cola"""
-        while consulta_processing:
-            try:
-                if not consulta_queue.empty():
-                    consulta = consulta_queue.get()
-                    self.execute_consulta(consulta)
-                    consulta_queue.task_done()
-                else:
-                    time.sleep(0.5)  # Esperar 500ms antes de verificar nuevamente
-            except Exception as e:
-                logger.error(f"Error procesando consulta: {e}")
-                time.sleep(1)
-    
-    def execute_consulta(self, consulta):
-        """Ejecutar una consulta específica"""
-        try:
-            tipo = consulta['tipo']
-            chat_id = consulta['chat_id']
-            user_id = consulta['user_id']
-            user_info = consulta['user_info']
-            parametros = consulta['parametros']
-            loading_msg = consulta['loading_msg']
-            
-            logger.info(f"Ejecutando consulta tipo: {tipo} para usuario: {user_id}")
-            
-            if tipo == 'dni':
-                self.execute_dni_consulta(chat_id, user_id, user_info, parametros['dni'], loading_msg)
-            elif tipo == 'nombres':
-                self.execute_nombres_consulta(chat_id, user_id, user_info, parametros['nombres'], loading_msg)
-            elif tipo == 'telefono':
-                self.execute_telefono_consulta(chat_id, user_id, user_info, parametros['numero'], loading_msg)
-            elif tipo == 'arbol':
-                self.execute_arbol_consulta(chat_id, user_id, user_info, parametros['dni'], loading_msg)
-            else:
-                logger.error(f"Tipo de consulta desconocido: {tipo}")
-        except Exception as e:
-            logger.error(f"Error ejecutando consulta: {e}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
+    # Sistema de cola eliminado - respuestas directas
         
     def send_message(self, chat_id, text, reply_markup=None, include_image=True):
         """Enviar mensaje a Telegram"""
@@ -356,6 +303,9 @@ class RespaldoDoxBot:
                 logger.error(f"API DNI error: {response.status_code}")
                 logger.error(f"Respuesta completa: {response.text}")
                 return None
+        except requests.exceptions.Timeout:
+            logger.error(f"Timeout al consultar API DNI: {e}")
+            return None
         except Exception as e:
             logger.error(f"Error al consultar API DNI: {e}")
             return None
@@ -452,28 +402,14 @@ class RespaldoDoxBot:
             chat_id,
             f"🔍 **Consultando información del DNI...**\n"
             f"📄 DNI: `{dni}`\n"
-            "⏳ Tu consulta está en cola, por favor espera..."
+            "⏳ Procesando consulta..."
         )
         
-        # Agregar a la cola de consultas
-        consulta = {
-            'tipo': 'dni',
-            'chat_id': chat_id,
-            'user_id': user_id,
-            'user_info': user_info,
-            'parametros': {'dni': dni},
-            'loading_msg': loading_msg
-        }
-        consulta_queue.put(consulta)
-        logger.info(f"Consulta DNI agregada a la cola para usuario {user_id}")
-    
-    def execute_dni_consulta(self, chat_id, user_id, user_info, dni, loading_msg):
-        """Ejecutar consulta DNI en la cola"""
         try:
             # Obtener nombre de usuario para mostrar
             user_display = self.get_user_display_name(user_info)
             
-            # Consultar la API
+            # Consultar la API directamente
             dni_data = self.consultar_dni(dni)
             
             if dni_data and dni_data.get('success'):
@@ -519,6 +455,18 @@ class RespaldoDoxBot:
                         include_image=False
                     )
                 
+        except requests.exceptions.Timeout:
+            logger.error(f"Timeout al consultar DNI {dni}")
+            if loading_msg and 'result' in loading_msg:
+                message_id = loading_msg['result']['message_id']
+                self.edit_message(
+                    chat_id, message_id,
+                    f"⏰ **Timeout en la consulta** del DNI: `{dni}`\n\n"
+                    "🔄 La API está tardando más de 30 segundos.\n"
+                    "💡 Intenta nuevamente en unos momentos.\n\n"
+                    f"🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>",
+                    include_image=False
+                )
         except Exception as e:
             logger.error(f"Error al consultar DNI {dni}: {e}")
             if loading_msg and 'result' in loading_msg:
@@ -526,109 +474,12 @@ class RespaldoDoxBot:
                 self.edit_message(
                     chat_id, message_id,
                     f"❌ **Error al consultar** el DNI: `{dni}`\n\n"
-                    "🔄 Intenta nuevamente en unos momentos.",
+                    "🔄 Intenta nuevamente en unos momentos.\n\n"
+                    f"🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>",
                     include_image=False
                 )
     
-    def execute_nombres_consulta(self, chat_id, user_id, user_info, nombres, loading_msg):
-        """Ejecutar consulta de nombres en la cola"""
-        try:
-            # Obtener nombre de usuario para mostrar
-            user_display = self.get_user_display_name(user_info)
-            
-            # Parsear nombres y apellidos del formato "nombres|apellidos"
-            if '|' in nombres:
-                partes = nombres.split('|', 1)
-                nombres_part = partes[0]
-                apellidos_part = partes[1] if len(partes) > 1 else ""
-            else:
-                nombres_part = nombres
-                apellidos_part = ""
-            
-            # Consultar la API
-            nombres_data = self.consultar_nombres(nombres_part, apellidos_part)
-            
-            if nombres_data and nombres_data.get('success'):
-                # Formatear respuesta
-                response = self.formatear_respuesta_nombres(nombres_data, nombres, user_display)
-                
-                # Si hay más de 10 resultados, crear archivo
-                if len(nombres_data['data']['results']) > 10:
-                    # Crear archivo TXT
-                    file_path = self.crear_archivo_nombres(nombres_data['data']['results'], nombres, user_display)
-                    
-                    # Enviar archivo con imagen
-                    self.send_document_with_image(chat_id, file_path, "📄 **Resultados de búsqueda por nombres**")
-                    
-                    # Eliminar mensaje de carga
-                    if loading_msg and 'result' in loading_msg:
-                        message_id = loading_msg['result']['message_id']
-                        self.delete_message(chat_id, message_id)
-                else:
-                    # Mostrar resultados en el chat
-                    if loading_msg and 'result' in loading_msg:
-                        message_id = loading_msg['result']['message_id']
-                        self.edit_message(chat_id, message_id, response, include_image=True)
-            else:
-                if loading_msg and 'result' in loading_msg:
-                    message_id = loading_msg['result']['message_id']
-                    self.edit_message(
-                        chat_id, message_id,
-                        f"❌ **No se encontraron resultados** para: `{nombres}`\n\n"
-                        "🔍 Verifica los nombres e intenta nuevamente.\n\n"
-                        f"🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>",
-                        include_image=True
-                    )
-                
-        except Exception as e:
-            logger.error(f"Error al consultar nombres {nombres}: {e}")
-            if loading_msg and 'result' in loading_msg:
-                message_id = loading_msg['result']['message_id']
-                self.edit_message(
-                    chat_id, message_id,
-                    f"❌ **Error al consultar** los nombres: `{nombres}`\n\n"
-                    "🔄 Intenta nuevamente en unos momentos.",
-                    include_image=True
-                )
-    
-    def execute_telefono_consulta(self, chat_id, user_id, user_info, numero, loading_msg):
-        """Ejecutar consulta de teléfono en la cola"""
-        try:
-            # Obtener nombre de usuario para mostrar
-            user_display = self.get_user_display_name(user_info)
-            
-            # Consultar la API
-            telefono_data = self.consultar_telefono(numero)
-            
-            if telefono_data and telefono_data.get('coRespuesta') == '0000':
-                # Formatear respuesta
-                response = self.formatear_respuesta_telefono(telefono_data, numero, user_display)
-                
-                # Editar mensaje de carga
-                if loading_msg and 'result' in loading_msg:
-                    message_id = loading_msg['result']['message_id']
-                    self.edit_message(chat_id, message_id, response, include_image=True)
-            else:
-                if loading_msg and 'result' in loading_msg:
-                    message_id = loading_msg['result']['message_id']
-                    self.edit_message(
-                        chat_id, message_id,
-                        f"❌ **No se encontró información** para: `{numero}`\n\n"
-                        "🔍 Verifica el número e intenta nuevamente.\n\n"
-                        f"🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>",
-                        include_image=True
-                    )
-                
-        except Exception as e:
-            logger.error(f"Error al consultar teléfono {numero}: {e}")
-            if loading_msg and 'result' in loading_msg:
-                message_id = loading_msg['result']['message_id']
-                self.edit_message(
-                    chat_id, message_id,
-                    f"❌ **Error al consultar** el número: `{numero}`\n\n"
-                    "🔄 Intenta nuevamente en unos momentos.",
-                    include_image=True
-                )
+    # Funciones execute_*_consulta eliminadas - respuestas directas
     
     def handle_cmds_command(self, chat_id):
         """Manejar comando /cmds"""
@@ -677,6 +528,9 @@ class RespaldoDoxBot:
                 logger.error(f"API nombres error: {response.status_code}")
                 logger.error(f"Respuesta completa: {response.text}")
                 return None
+        except requests.exceptions.Timeout:
+            logger.error(f"Timeout al consultar API de nombres: {e}")
+            return None
         except Exception as e:
             logger.error(f"Error al consultar API de nombres: {e}")
             return None
@@ -819,20 +673,71 @@ class RespaldoDoxBot:
                 f"🔍 **Buscando por nombres...**\n"
                 f"👤 Nombres: `{nombres}`\n"
                 f"👥 Apellidos: `{apellidos}`\n"
-                "⏳ Tu consulta está en cola, por favor espera..."
+                "⏳ Procesando consulta..."
             )
             
-            # Agregar a la cola de consultas
-            consulta = {
-                'tipo': 'nombres',
-                'chat_id': chat_id,
-                'user_id': user_id,
-                'user_info': user_info,
-                'parametros': {'nombres': f"{nombres}|{apellidos}"},
-                'loading_msg': loading_msg
-            }
-            consulta_queue.put(consulta)
-            logger.info(f"Consulta nombres agregada a la cola para usuario {user_id}")
+            try:
+                # Obtener nombre de usuario para mostrar
+                user_display = self.get_user_display_name(user_info)
+                
+                # Consultar la API directamente
+                nombres_data = self.consultar_nombres(nombres, apellidos)
+                
+                if nombres_data and nombres_data.get('success'):
+                    # Formatear respuesta
+                    response = self.formatear_respuesta_nombres(nombres_data, f"{nombres}|{apellidos}", user_display)
+                    
+                    # Si hay más de 10 resultados, crear archivo
+                    if len(nombres_data['data']['results']) > 10:
+                        # Crear archivo TXT
+                        file_path = self.crear_archivo_nombres(nombres_data['data']['results'], f"{nombres}|{apellidos}", user_display)
+                        
+                        # Enviar archivo con imagen
+                        self.send_document_with_image(chat_id, file_path, "📄 **Resultados de búsqueda por nombres**")
+                        
+                        # Eliminar mensaje de carga
+                        if loading_msg and 'result' in loading_msg:
+                            message_id = loading_msg['result']['message_id']
+                            self.delete_message(chat_id, message_id)
+                    else:
+                        # Mostrar resultados en el chat
+                        if loading_msg and 'result' in loading_msg:
+                            message_id = loading_msg['result']['message_id']
+                            self.edit_message(chat_id, message_id, response, include_image=True)
+                else:
+                    if loading_msg and 'result' in loading_msg:
+                        message_id = loading_msg['result']['message_id']
+                        self.edit_message(
+                            chat_id, message_id,
+                            f"❌ **No se encontraron resultados** para: `{nombres}|{apellidos}`\n\n"
+                            "🔍 Verifica los nombres e intenta nuevamente.\n\n"
+                            f"🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>",
+                            include_image=True
+                        )
+                    
+            except requests.exceptions.Timeout:
+                logger.error(f"Timeout al consultar nombres {nombres}|{apellidos}")
+                if loading_msg and 'result' in loading_msg:
+                    message_id = loading_msg['result']['message_id']
+                    self.edit_message(
+                        chat_id, message_id,
+                        f"⏰ **Timeout en la consulta** de nombres: `{nombres}|{apellidos}`\n\n"
+                        "🔄 La API está tardando más de 30 segundos.\n"
+                        "💡 Intenta nuevamente en unos momentos.\n\n"
+                        f"🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>",
+                        include_image=True
+                    )
+            except Exception as e:
+                logger.error(f"Error al consultar nombres {nombres}|{apellidos}: {e}")
+                if loading_msg and 'result' in loading_msg:
+                    message_id = loading_msg['result']['message_id']
+                    self.edit_message(
+                        chat_id, message_id,
+                        f"❌ **Error al consultar** los nombres: `{nombres}|{apellidos}`\n\n"
+                        "🔄 Intenta nuevamente en unos momentos.\n\n"
+                        f"🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>",
+                        include_image=True
+                    )
                 
         except Exception as e:
             logger.error(f"Error al procesar comando /nm: {e}")
@@ -1204,20 +1109,58 @@ class RespaldoDoxBot:
             chat_id,
             f"🔍 **Consultando {tipo_consulta.lower()}...**\n"
             f"📞 {tipo_consulta}: `{numero}`\n"
-            "⏳ Tu consulta está en cola, por favor espera..."
+            "⏳ Procesando consulta..."
         )
         
-        # Agregar a la cola de consultas
-        consulta = {
-            'tipo': 'telefono',
-            'chat_id': chat_id,
-            'user_id': user_id,
-            'user_info': user_info,
-            'parametros': {'numero': numero},
-            'loading_msg': loading_msg
-        }
-        consulta_queue.put(consulta)
-        logger.info(f"Consulta teléfono agregada a la cola para usuario {user_id}")
+        try:
+            # Obtener nombre de usuario para mostrar
+            user_display = self.get_user_display_name(user_info)
+            
+            # Consultar la API directamente
+            telefono_data = self.consultar_telefono(numero)
+            
+            if telefono_data and telefono_data.get('coRespuesta') == '0000':
+                # Formatear respuesta
+                response = self.formatear_respuesta_telefono(telefono_data, numero, user_display)
+                
+                # Editar mensaje de carga
+                if loading_msg and 'result' in loading_msg:
+                    message_id = loading_msg['result']['message_id']
+                    self.edit_message(chat_id, message_id, response, include_image=True)
+            else:
+                if loading_msg and 'result' in loading_msg:
+                    message_id = loading_msg['result']['message_id']
+                    self.edit_message(
+                        chat_id, message_id,
+                        f"❌ **No se encontró información** para: `{numero}`\n\n"
+                        "🔍 Verifica el número e intenta nuevamente.\n\n"
+                        f"🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>",
+                        include_image=True
+                    )
+                
+        except requests.exceptions.Timeout:
+            logger.error(f"Timeout al consultar teléfono {numero}")
+            if loading_msg and 'result' in loading_msg:
+                message_id = loading_msg['result']['message_id']
+                self.edit_message(
+                    chat_id, message_id,
+                    f"⏰ **Timeout en la consulta** del número: `{numero}`\n\n"
+                    "🔄 La API está tardando más de 30 segundos.\n"
+                    "💡 Intenta nuevamente en unos momentos.\n\n"
+                    f"🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>",
+                    include_image=True
+                )
+        except Exception as e:
+            logger.error(f"Error al consultar teléfono {numero}: {e}")
+            if loading_msg and 'result' in loading_msg:
+                message_id = loading_msg['result']['message_id']
+                self.edit_message(
+                    chat_id, message_id,
+                    f"❌ **Error al consultar** el número: `{numero}`\n\n"
+                    "🔄 Intenta nuevamente en unos momentos.\n\n"
+                    f"🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>",
+                    include_image=True
+                )
     
     def handle_arg_command(self, chat_id, user_id, user_info, dni):
         """Manejar comando /arg"""
