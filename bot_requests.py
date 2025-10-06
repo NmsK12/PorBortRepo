@@ -26,8 +26,13 @@ class RespaldoDoxBot:
         self.last_update_id = 0
         self.running = True
         
-    def send_message(self, chat_id, text, reply_markup=None):
+    def send_message(self, chat_id, text, reply_markup=None, include_image=True):
         """Enviar mensaje a Telegram"""
+        # Si debe incluir imagen y no es una respuesta de DNI, enviar con foto
+        if include_image and not self.is_dni_response(text):
+            return self.send_message_with_image(chat_id, text, reply_markup)
+        
+        # Envío normal sin imagen
         url = f"{TELEGRAM_API_URL}/sendMessage"
         data = {
             'chat_id': chat_id,
@@ -43,6 +48,35 @@ class RespaldoDoxBot:
         except Exception as e:
             logger.error(f"Error enviando mensaje: {e}")
             return None
+    
+    def is_dni_response(self, text):
+        """Verificar si es una respuesta del comando DNI"""
+        return "RENIEC ONLINE" in text or "DNI ➾" in text
+    
+    def send_message_with_image(self, chat_id, text, reply_markup=None):
+        """Enviar mensaje con imagen adjunta"""
+        try:
+            # Leer la imagen
+            with open('imagen.jpg', 'rb') as photo:
+                files = {'photo': photo}
+                data = {
+                    'chat_id': chat_id,
+                    'caption': text,
+                    'parse_mode': 'Markdown'
+                }
+                
+                if reply_markup:
+                    data['reply_markup'] = json.dumps(reply_markup)
+                
+                url = f"{TELEGRAM_API_URL}/sendPhoto"
+                response = requests.post(url, files=files, data=data)
+                return response.json()
+        except FileNotFoundError:
+            logger.error("Archivo imagen.jpg no encontrado, enviando mensaje sin imagen")
+            return self.send_message(chat_id, text, reply_markup, include_image=False)
+        except Exception as e:
+            logger.error(f"Error enviando mensaje con imagen: {e}")
+            return self.send_message(chat_id, text, reply_markup, include_image=False)
     
     def send_photo(self, chat_id, photo_bytes, caption=None):
         """Enviar foto a Telegram"""
@@ -60,8 +94,15 @@ class RespaldoDoxBot:
             logger.error(f"Error enviando foto: {e}")
             return None
     
-    def edit_message(self, chat_id, message_id, text):
+    def edit_message(self, chat_id, message_id, text, include_image=True):
         """Editar mensaje existente"""
+        # Si debe incluir imagen y no es una respuesta de DNI, enviar nueva foto
+        if include_image and not self.is_dni_response(text):
+            # Eliminar mensaje anterior y enviar nuevo con imagen
+            self.delete_message(chat_id, message_id)
+            return self.send_message_with_image(chat_id, text)
+        
+        # Edición normal sin imagen
         url = f"{TELEGRAM_API_URL}/editMessageText"
         data = {
             'chat_id': chat_id,
@@ -77,8 +118,15 @@ class RespaldoDoxBot:
             logger.error(f"Error editando mensaje: {e}")
             return None
     
-    def edit_message_with_keyboard(self, chat_id, message_id, text, keyboard):
+    def edit_message_with_keyboard(self, chat_id, message_id, text, keyboard, include_image=True):
         """Editar mensaje existente con teclado"""
+        # Si debe incluir imagen y no es una respuesta de DNI, enviar nueva foto
+        if include_image and not self.is_dni_response(text):
+            # Eliminar mensaje anterior y enviar nuevo con imagen
+            self.delete_message(chat_id, message_id)
+            return self.send_message_with_image(chat_id, text, keyboard)
+        
+        # Edición normal sin imagen
         url = f"{TELEGRAM_API_URL}/editMessageText"
         data = {
             'chat_id': chat_id,
@@ -268,12 +316,12 @@ class RespaldoDoxBot:
                         # Si falla la foto, enviar solo texto
                         if loading_msg and 'result' in loading_msg:
                             message_id = loading_msg['result']['message_id']
-                            self.edit_message(chat_id, message_id, response)
+                            self.edit_message(chat_id, message_id, response, include_image=False)
                 else:
                     # Sin foto, solo texto
                     if loading_msg and 'result' in loading_msg:
                         message_id = loading_msg['result']['message_id']
-                        self.edit_message(chat_id, message_id, response)
+                        self.edit_message(chat_id, message_id, response, include_image=False)
             else:
                 if loading_msg and 'result' in loading_msg:
                     message_id = loading_msg['result']['message_id']
@@ -281,7 +329,8 @@ class RespaldoDoxBot:
                         chat_id, message_id,
                         f"❌ **No se encontró información** para el DNI: `{dni}`\n\n"
                         "🔍 Verifica que el número sea correcto e intenta nuevamente.\n\n"
-                        f"🤖 *Consulta realizada por: {user_display}*"
+                        f"🤖 *Consulta realizada por: {user_display}*",
+                        include_image=False
                     )
                 
         except Exception as e:
@@ -291,7 +340,8 @@ class RespaldoDoxBot:
                 self.edit_message(
                     chat_id, message_id,
                     f"❌ **Error al consultar** el DNI: `{dni}`\n\n"
-                    "🔄 Intenta nuevamente en unos momentos."
+                    "🔄 Intenta nuevamente en unos momentos.",
+                    include_image=False
                 )
     
     def handle_cmds_command(self, chat_id):
@@ -482,7 +532,7 @@ class RespaldoDoxBot:
                     # Mostrar texto normal
                     if loading_msg and 'result' in loading_msg:
                         message_id = loading_msg['result']['message_id']
-                        self.edit_message(chat_id, message_id, response)
+                        self.edit_message(chat_id, message_id, response, include_image=True)
             else:
                 if loading_msg and 'result' in loading_msg:
                     message_id = loading_msg['result']['message_id']
@@ -490,7 +540,8 @@ class RespaldoDoxBot:
                         chat_id, message_id,
                         f"❌ **Error al buscar** nombres: `{nombres_texto}`\n\n"
                         "🔄 Intenta nuevamente en unos momentos.\n\n"
-                        f"🤖 *Consulta realizada por: {user_display}*"
+                        f"🤖 *Consulta realizada por: {user_display}*",
+                        include_image=True
                     )
                 
         except Exception as e:
@@ -520,7 +571,7 @@ class RespaldoDoxBot:
                 "✅ **Ejemplo:** `/dni 44443333`\n\n"
                 "🤖 *Respaldodox - Bot de respaldo*"
             )
-            self.edit_message_with_keyboard(chat_id, message_id, response_text, keyboard)
+            self.edit_message_with_keyboard(chat_id, message_id, response_text, keyboard, include_image=True)
         elif callback_data == "nombres_info":
             keyboard = {
                 "inline_keyboard": [
@@ -539,7 +590,7 @@ class RespaldoDoxBot:
                 "• `/nm Maria,Jose|Lopez|Martinez`\n\n"
                 "🤖 *Respaldodox - Bot de respaldo*"
             )
-            self.edit_message_with_keyboard(chat_id, message_id, response_text, keyboard)
+            self.edit_message_with_keyboard(chat_id, message_id, response_text, keyboard, include_image=True)
         elif callback_data == "telefonos_info":
             keyboard = {
                 "inline_keyboard": [
@@ -558,7 +609,7 @@ class RespaldoDoxBot:
                 "• `/telp 987654321` (Teléfono)\n\n"
                 "🤖 *Respaldodox - Bot de respaldo*"
             )
-            self.edit_message_with_keyboard(chat_id, message_id, response_text, keyboard)
+            self.edit_message_with_keyboard(chat_id, message_id, response_text, keyboard, include_image=True)
         elif callback_data == "back_to_menu":
             keyboard = {
                 "inline_keyboard": [
@@ -573,7 +624,7 @@ class RespaldoDoxBot:
                 "📋 **COMANDOS DISPONIBLES, PRESIONA UN BOTÓN**\n\n"
                 "🤖 **Respaldodox** - Tu asistente para consultas de DNI"
             )
-            self.edit_message_with_keyboard(chat_id, message_id, response_text, keyboard)
+            self.edit_message_with_keyboard(chat_id, message_id, response_text, keyboard, include_image=True)
     
     def consultar_telefono(self, numero):
         """Consultar información por teléfono o DNI en la API"""
@@ -682,7 +733,7 @@ class RespaldoDoxBot:
                 # Editar mensaje de carga
                 if loading_msg and 'result' in loading_msg:
                     message_id = loading_msg['result']['message_id']
-                    self.edit_message(chat_id, message_id, response)
+                    self.edit_message(chat_id, message_id, response, include_image=True)
             else:
                 if loading_msg and 'result' in loading_msg:
                     message_id = loading_msg['result']['message_id']
@@ -690,7 +741,8 @@ class RespaldoDoxBot:
                         chat_id, message_id,
                         f"❌ **Error al consultar** {tipo_consulta.lower()}: `{numero}`\n\n"
                         "🔄 Intenta nuevamente en unos momentos.\n\n"
-                        f"🤖 *Consulta realizada por: {user_display}*"
+                        f"🤖 *Consulta realizada por: {user_display}*",
+                        include_image=True
                     )
                 
         except Exception as e:
@@ -701,7 +753,8 @@ class RespaldoDoxBot:
                     chat_id, message_id,
                     f"❌ **Error al procesar** la consulta.\n\n"
                     "🔄 Intenta nuevamente en unos momentos.\n\n"
-                    f"🤖 *Consulta realizada por: {user_display}*"
+                    f"🤖 *Consulta realizada por: {user_display}*",
+                    include_image=True
                 )
     
     def is_command(self, text):
