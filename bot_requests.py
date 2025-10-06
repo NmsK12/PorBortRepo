@@ -141,10 +141,10 @@ class RespaldoDoxBot:
             logger.error(f"Error al consultar API: {e}")
             return None
     
-    def formatear_respuesta_dni(self, data, dni, user_info):
+    def formatear_respuesta_dni(self, data, dni, user_display):
         """Formatear la respuesta de la API para mostrar"""
         if not data.get('data'):
-            return f"❌ **El DNI {dni} no se encontró en el sistema RENIEC**\n\n🔍 Verifica que el número sea correcto e intenta nuevamente.\n\n🤖 *Consulta realizada por: {user_info}*"
+            return f"❌ **El DNI {dni} no se encontró en el sistema RENIEC**\n\n🔍 Verifica que el número sea correcto e intenta nuevamente.\n\n🤖 *Consulta realizada por: {user_display}*"
         
         data_info = data['data']
         
@@ -179,7 +179,7 @@ class RespaldoDoxBot:
 🔢 **UBIGEO INEI ➾ {data_info.get('UBIGEO_INE', 'N/A')}**
 🔢 **UBIGEO SUNAT ➾ {data_info.get('UBIGEO_SUNAT', 'N/A')}**
 
-🤖 *Consulta realizada por: {user_info}*
+🤖 *Consulta realizada por: {user_display}*
 """
         return response
     
@@ -201,7 +201,7 @@ class RespaldoDoxBot:
         
         self.send_message(chat_id, welcome_message)
     
-    def handle_dni_command(self, chat_id, user_id, dni):
+    def handle_dni_command(self, chat_id, user_id, user_info, dni):
         """Manejar comando /dni"""
         # Verificar cooldown (8 segundos)
         current_time = time.time()
@@ -236,15 +236,15 @@ class RespaldoDoxBot:
         )
         
         try:
-            # Obtener información del usuario
-            user_info = f"@{user_id}" if user_id else "Usuario"
+            # Obtener nombre de usuario para mostrar
+            user_display = self.get_user_display_name(user_info)
             
             # Consultar la API
             dni_data = self.consultar_dni(dni)
             
             if dni_data and dni_data.get('success'):
                 # Formatear respuesta
-                response = self.formatear_respuesta_dni(dni_data, dni, user_info)
+                response = self.formatear_respuesta_dni(dni_data, dni, user_display)
                 
                 # Si hay foto, enviarla primero
                 if dni_data.get('photo_base64'):
@@ -281,7 +281,7 @@ class RespaldoDoxBot:
                         chat_id, message_id,
                         f"❌ **No se encontró información** para el DNI: `{dni}`\n\n"
                         "🔍 Verifica que el número sea correcto e intenta nuevamente.\n\n"
-                        f"🤖 *Consulta realizada por: {user_info}*"
+                        f"🤖 *Consulta realizada por: {user_display}*"
                     )
                 
         except Exception as e:
@@ -335,10 +335,10 @@ class RespaldoDoxBot:
             logger.error(f"Error al consultar API de nombres: {e}")
             return None
     
-    def formatear_respuesta_nombres(self, data, nombres_busqueda, user_info):
+    def formatear_respuesta_nombres(self, data, nombres_busqueda, user_display):
         """Formatear la respuesta de búsqueda por nombres"""
         if not data.get('data') or not data['data'].get('results'):
-            return f"❌ **No se encontraron resultados para: {nombres_busqueda}**\n\n🔍 Verifica los nombres e intenta nuevamente.\n\n🤖 *Consulta realizada por: {user_info}*"
+            return f"❌ **No se encontraron resultados para: {nombres_busqueda}**\n\n🔍 Verifica los nombres e intenta nuevamente.\n\n🤖 *Consulta realizada por: {user_display}*"
         
         results = data['data']['results']
         
@@ -353,13 +353,13 @@ class RespaldoDoxBot:
                 response += f"    🆔 DNI: `{result.get('dni', 'N/A')}`\n"
                 response += f"    🎂 Edad: {result.get('edad', 'N/A')}\n\n"
             
-            response += f"🤖 *Consulta realizada por: {user_info}*"
+            response += f"🤖 *Consulta realizada por: {user_display}*"
             return response
         else:
             # Crear archivo TXT para más de 10 resultados
-            return self.crear_archivo_nombres(results, nombres_busqueda, user_info)
+            return self.crear_archivo_nombres(results, nombres_busqueda, user_display)
     
-    def crear_archivo_nombres(self, results, nombres_busqueda, user_info):
+    def crear_archivo_nombres(self, results, nombres_busqueda, user_display):
         """Crear archivo TXT con los resultados de nombres"""
         content = f"[RESPALDODOX-CHOCO] BÚSQUEDA POR NOMBRES\n\n"
         content += f"Búsqueda: {nombres_busqueda}\n"
@@ -370,7 +370,7 @@ class RespaldoDoxBot:
             content += f"   DNI: {result.get('dni', 'N/A')}\n"
             content += f"   Edad: {result.get('edad', 'N/A')}\n\n"
         
-        content += f"Consulta realizada por: {user_info}"
+        content += f"Consulta realizada por: {user_display}"
         
         # Crear archivo temporal
         filename = f"nombres_{int(time.time())}.txt"
@@ -399,7 +399,7 @@ class RespaldoDoxBot:
             import os
             os.remove(file_path)
     
-    def handle_nm_command(self, chat_id, user_id, nombres_texto):
+    def handle_nm_command(self, chat_id, user_id, user_info, nombres_texto):
         """Manejar comando /nm"""
         # Verificar cooldown (8 segundos)
         current_time = time.time()
@@ -452,15 +452,15 @@ class RespaldoDoxBot:
                 "⏳ Por favor espera..."
             )
             
-            # Obtener información del usuario
-            user_info = f"@{user_id}" if user_id else "Usuario"
+            # Obtener nombre de usuario para mostrar
+            user_display = self.get_user_display_name(user_info)
             
             # Consultar la API
             nombres_data = self.consultar_nombres(nombres, apellidos)
             
             if nombres_data:
                 # Formatear respuesta
-                response = self.formatear_respuesta_nombres(nombres_data, nombres_texto, user_info)
+                response = self.formatear_respuesta_nombres(nombres_data, nombres_texto, user_display)
                 
                 # Si es un archivo, enviarlo
                 if isinstance(response, str) and response.endswith('.txt'):
@@ -476,7 +476,7 @@ class RespaldoDoxBot:
                         f"**[RESPALDODOX-CHOCO] BÚSQUEDA POR NOMBRES**\n\n"
                         f"🔍 **Búsqueda:** {nombres_texto}\n"
                         f"📊 **Resultados:** {len(nombres_data['data']['results'])}\n\n"
-                        f"🤖 *Consulta realizada por: {user_info}*"
+                        f"🤖 *Consulta realizada por: {user_display}*"
                     )
                 else:
                     # Mostrar texto normal
@@ -490,7 +490,7 @@ class RespaldoDoxBot:
                         chat_id, message_id,
                         f"❌ **Error al buscar** nombres: `{nombres_texto}`\n\n"
                         "🔄 Intenta nuevamente en unos momentos.\n\n"
-                        f"🤖 *Consulta realizada por: {user_info}*"
+                        f"🤖 *Consulta realizada por: {user_display}*"
                     )
                 
         except Exception as e:
@@ -592,10 +592,10 @@ class RespaldoDoxBot:
             logger.error(f"Error al consultar API de teléfonos: {e}")
             return None
     
-    def formatear_respuesta_telefono(self, data, numero, user_info):
+    def formatear_respuesta_telefono(self, data, numero, user_display):
         """Formatear la respuesta de consulta por teléfono"""
         if not data.get('listaAni') or not data['listaAni']:
-            return f"❌ **No se encontró información para: {numero}**\n\n🔍 Verifica el número e intenta nuevamente.\n\n🤖 *Consulta realizada por: {user_info}*"
+            return f"❌ **No se encontró información para: {numero}**\n\n🔍 Verifica el número e intenta nuevamente.\n\n🤖 *Consulta realizada por: {user_display}*"
         
         results = data['listaAni']
         
@@ -613,10 +613,10 @@ class RespaldoDoxBot:
             response += f"    📧 **Correo:** {result.get('correo', 'N/A')}\n"
             response += f"    📅 **Fecha:** {result.get('fecha', 'N/A')}\n\n"
         
-        response += f"🤖 *Consulta realizada por: {user_info}*"
+        response += f"🤖 *Consulta realizada por: {user_display}*"
         return response
     
-    def handle_telp_command(self, chat_id, user_id, numero):
+    def handle_telp_command(self, chat_id, user_id, user_info, numero):
         """Manejar comando /telp"""
         # Verificar cooldown (8 segundos)
         current_time = time.time()
@@ -660,8 +660,8 @@ class RespaldoDoxBot:
             )
             return
         
-        # Obtener información del usuario
-        user_info = f"@{user_id}" if user_id else "Usuario"
+        # Obtener nombre de usuario para mostrar
+        user_display = self.get_user_display_name(user_info)
         
         # Mostrar mensaje de carga
         loading_msg = self.send_message(
@@ -677,7 +677,7 @@ class RespaldoDoxBot:
             
             if telefono_data:
                 # Formatear respuesta
-                response = self.formatear_respuesta_telefono(telefono_data, numero, user_info)
+                response = self.formatear_respuesta_telefono(telefono_data, numero, user_display)
                 
                 # Editar mensaje de carga
                 if loading_msg and 'result' in loading_msg:
@@ -690,7 +690,7 @@ class RespaldoDoxBot:
                         chat_id, message_id,
                         f"❌ **Error al consultar** {tipo_consulta.lower()}: `{numero}`\n\n"
                         "🔄 Intenta nuevamente en unos momentos.\n\n"
-                        f"🤖 *Consulta realizada por: {user_info}*"
+                        f"🤖 *Consulta realizada por: {user_display}*"
                     )
                 
         except Exception as e:
@@ -701,7 +701,7 @@ class RespaldoDoxBot:
                     chat_id, message_id,
                     f"❌ **Error al procesar** la consulta.\n\n"
                     "🔄 Intenta nuevamente en unos momentos.\n\n"
-                    f"🤖 *Consulta realizada por: {user_info}*"
+                    f"🤖 *Consulta realizada por: {user_display}*"
                 )
     
     def is_command(self, text):
@@ -709,7 +709,19 @@ class RespaldoDoxBot:
         valid_commands = ['/start', '/dni', '/DNI', '.dni', '/cmds', '/CMDS', '.cmds', '/nm', '/NM', '.nm', '/telp', '/TELP', '.telp']
         return any(text.startswith(cmd) for cmd in valid_commands)
     
-    def handle_message(self, chat_id, user_id, text):
+    def get_user_display_name(self, user_info):
+        """Obtener el nombre de usuario para mostrar"""
+        # Prioridad: username > first_name > id
+        if user_info.get('username'):
+            return f"@{user_info['username']}"
+        elif user_info.get('first_name'):
+            last_name = user_info.get('last_name', '')
+            full_name = f"{user_info['first_name']} {last_name}".strip()
+            return full_name
+        else:
+            return f"Usuario {user_info.get('id', 'Desconocido')}"
+    
+    def handle_message(self, chat_id, user_id, user_info, text):
         """Manejar mensajes de texto"""
         # Solo procesar comandos válidos
         if not self.is_command(text):
@@ -728,7 +740,7 @@ class RespaldoDoxBot:
                     "🤖 *Respaldodox*"
                 )
                 return
-            self.handle_dni_command(chat_id, user_id, dni)
+            self.handle_dni_command(chat_id, user_id, user_info, dni)
         elif text.startswith('/nm ') or text.startswith('/NM ') or text.startswith('.nm '):
             nombres = text.split(' ', 1)[1] if len(text.split(' ')) > 1 else ""
             if not nombres:
@@ -740,7 +752,7 @@ class RespaldoDoxBot:
                     "🤖 *Respaldodox*"
                 )
                 return
-            self.handle_nm_command(chat_id, user_id, nombres)
+            self.handle_nm_command(chat_id, user_id, user_info, nombres)
         elif text.startswith('/telp ') or text.startswith('/TELP ') or text.startswith('.telp '):
             telefono = text.split(' ', 1)[1] if len(text.split(' ')) > 1 else ""
             if not telefono:
@@ -753,7 +765,7 @@ class RespaldoDoxBot:
                     "🤖 *Respaldodox*"
                 )
                 return
-            self.handle_telp_command(chat_id, user_id, telefono)
+            self.handle_telp_command(chat_id, user_id, user_info, telefono)
         elif text.startswith('/cmds') or text.startswith('/CMDS') or text.startswith('.cmds'):
             self.handle_cmds_command(chat_id)
     
@@ -764,10 +776,11 @@ class RespaldoDoxBot:
                 message = update['message']
                 chat_id = message['chat']['id']
                 user_id = message['from']['id']
+                user_info = message['from']
                 text = message.get('text', '')
                 
                 if text:
-                    self.handle_message(chat_id, user_id, text)
+                    self.handle_message(chat_id, user_id, user_info, text)
             
             elif 'callback_query' in update:
                 callback_query = update['callback_query']
