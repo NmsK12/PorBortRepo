@@ -83,7 +83,7 @@ class RespaldoDoxBot:
             return
         
         if not username:
-            self.send_message(chat_id, "❌ <b>Uso incorrecto:</b>\n\n<code>/adduser @usuario</code>\n\nEjemplo: <code>/adduser @juan123</code>", include_image=True)
+            self.send_message(chat_id, "❌ <b>Uso incorrecto:</b>\n\n/adduser @usuario\n\nEjemplo: /adduser @juan123", include_image=True)
             return
         
         # Remover @ si está presente
@@ -101,7 +101,7 @@ class RespaldoDoxBot:
             return
         
         if not username:
-            self.send_message(chat_id, "❌ <b>Uso incorrecto:</b>\n\n<code>/unuser @usuario</code>\n\nEjemplo: <code>/unuser @juan123</code>", include_image=True)
+            self.send_message(chat_id, "❌ <b>Uso incorrecto:</b>\n\n/unuser @usuario\n\nEjemplo: /unuser @juan123", include_image=True)
             return
         
         # Remover @ si está presente
@@ -138,13 +138,13 @@ class RespaldoDoxBot:
     
     # Sistema de cola eliminado - respuestas directas
         
-    def send_message(self, chat_id, text, reply_markup=None, include_image=True):
+    def send_message(self, chat_id, text, reply_markup=None, include_image=True, reply_to_message_id=None):
         """Enviar mensaje a Telegram"""
         logger.info(f"send_message llamado: chat_id={chat_id}, include_image={include_image}, is_dni_response={self.is_dni_response(text)}")
         # Si debe incluir imagen y no es una respuesta de DNI, enviar con foto
         if include_image and not self.is_dni_response(text):
             logger.info("Enviando mensaje con imagen")
-            return self.send_message_with_image(chat_id, text, reply_markup)
+            return self.send_message_with_image(chat_id, text, reply_markup, reply_to_message_id)
         
         # Envío normal sin imagen
         url = f"{TELEGRAM_API_URL}/sendMessage"
@@ -155,6 +155,8 @@ class RespaldoDoxBot:
         }
         if reply_markup:
             data['reply_markup'] = json.dumps(reply_markup)
+        if reply_to_message_id:
+            data['reply_to_message_id'] = reply_to_message_id
         
         try:
             response = requests.post(url, json=data)
@@ -167,7 +169,7 @@ class RespaldoDoxBot:
         """Verificar si es una respuesta del comando DNI"""
         return "RENIEC ONLINE" in text or "DNI ➾" in text
     
-    def send_message_with_image(self, chat_id, text, reply_markup=None):
+    def send_message_with_image(self, chat_id, text, reply_markup=None, reply_to_message_id=None):
         """Enviar mensaje con imagen adjunta"""
         try:
             # Leer la imagen
@@ -181,6 +183,8 @@ class RespaldoDoxBot:
                 
                 if reply_markup:
                     data['reply_markup'] = json.dumps(reply_markup)
+                if reply_to_message_id:
+                    data['reply_to_message_id'] = reply_to_message_id
                 
                 url = f"{TELEGRAM_API_URL}/sendPhoto"
                 response = requests.post(url, files=files, data=data)
@@ -192,7 +196,7 @@ class RespaldoDoxBot:
             logger.error(f"Error enviando mensaje con imagen: {e}")
             return self.send_message(chat_id, text, reply_markup, include_image=False)
     
-    def send_photo(self, chat_id, photo_bytes, caption=None):
+    def send_photo(self, chat_id, photo_bytes, caption=None, reply_to_message_id=None):
         """Enviar foto a Telegram"""
         url = f"{TELEGRAM_API_URL}/sendPhoto"
         files = {'photo': ('dni_photo.jpg', photo_bytes, 'image/jpeg')}
@@ -200,6 +204,8 @@ class RespaldoDoxBot:
         if caption:
             data['caption'] = caption
             data['parse_mode'] = 'HTML'
+        if reply_to_message_id:
+            data['reply_to_message_id'] = reply_to_message_id
         
         try:
             response = requests.post(url, files=files, data=data)
@@ -362,18 +368,18 @@ class RespaldoDoxBot:
 ¡Hola! Soy <b>Respaldodox</b>, tu asistente para consultas de DNI.
 
 📋 <b>Comandos disponibles:</b>
-• <code>/dni {número}</code> - Consultar información de DNI
-• <code>/nm {nombres|apellidos}</code> - Buscar por nombres
-• <code>/telp {número}</code> - Consultar teléfonos por DNI o teléfono
-• <code>/arg {dni}</code> - Consultar árbol genealógico
-• <code>/cmds</code> - Ver todos los comandos disponibles
+• /dni {número} - Consultar información de DNI
+• /nm {nombres|apellidos} - Buscar por nombres
+• /telp {número} - Consultar teléfonos por DNI o teléfono
+• /arg {dni} - Consultar árbol genealógico
+• /cmds - Ver todos los comandos disponibles
 
 ¡Estoy aquí para ayudarte! 🚀
         """
         
         self.send_message(chat_id, welcome_message)
     
-    def handle_dni_command(self, chat_id, user_id, user_info, dni):
+    def handle_dni_command(self, chat_id, user_id, user_info, dni, message_id=None):
         """Manejar comando /dni"""
         # Verificar cooldown (8 segundos)
         current_time = time.time()
@@ -383,7 +389,8 @@ class RespaldoDoxBot:
                 self.send_message(
                     chat_id,
                     f"⏰ <b>Espera {int(time_left)} segundos** antes de hacer otra consulta.\n\n"
-                    "🛡️ *Sistema anti-spam activo*"
+                    "🛡️ *Sistema anti-spam activo*",
+                    reply_to_message_id=message_id
                 )
                 return
         
@@ -395,7 +402,8 @@ class RespaldoDoxBot:
             self.send_message(
                 chat_id,
                 "❌ <b>Error:</b> El DNI debe ser un número de 8 dígitos.\n\n"
-                "📝 <b>Ejemplo:</b> `/dni 12345678`"
+                "📝 <b>Ejemplo:</b> `/dni 12345678`",
+                reply_to_message_id=message_id
             )
             return
         
@@ -626,7 +634,7 @@ class RespaldoDoxBot:
             logger.error(f"Error enviando documento: {e}")
             return {'ok': False, 'error': str(e)}
     
-    def handle_nm_command(self, chat_id, user_id, user_info, nombres_texto):
+    def handle_nm_command(self, chat_id, user_id, user_info, nombres_texto, message_id=None):
         """Manejar comando /nm"""
         # Verificar cooldown (8 segundos)
         current_time = time.time()
@@ -636,7 +644,8 @@ class RespaldoDoxBot:
                 self.send_message(
                     chat_id,
                     f"⏰ <b>Espera {int(time_left)} segundos** antes de hacer otra consulta.\n\n"
-                    "🛡️ *Sistema anti-spam activo*"
+                    "🛡️ *Sistema anti-spam activo*",
+                    reply_to_message_id=message_id
                 )
                 return
         
@@ -922,9 +931,9 @@ class RespaldoDoxBot:
         familiares = data['FAMILIARES']
         
         response = f"<b>[RESPALDODOX-CHOCO] ÁRBOL GENEALÓGICO</b>\n\n"
-        response += f"🆔 <b>DNI:</b> <code>{dni}</code>\n"
+        response += f"🆔 <b>DNI:</b> {dni}\n"
         response += f"📋 <b>Tipo de consulta:</b> {self.escape_html(data.get('TIPO_CONSULTA', 'N/A'))}\n"
-        response += f"🆔 <b>Request ID:</b> <code>{data.get('request_id', 'N/A')}</code>\n\n"
+        response += f"🆔 <b>Request ID:</b> {data.get('request_id', 'N/A')}\n\n"
         
         # Procesar familiares por relación
         if familiares:
@@ -978,7 +987,7 @@ class RespaldoDoxBot:
                     emoji_verif = "✅" if verificacion == "ALTA" else "⚠️" if verificacion == "MEDIA" else "❌"
                     
                     response += f"   <b>{i}.</b> {emoji_sexo} <b>{nombre}</b>\n"
-                    response += f"       🆔 DNI: <code>{dni_familiar}</code>\n"
+                    response += f"       🆔 DNI: {dni_familiar}\n"
                     response += f"       🎂 Edad: {edad} años\n"
                     response += f"       {emoji_verif} Verificación: {verificacion}\n\n"
         
@@ -1063,7 +1072,7 @@ class RespaldoDoxBot:
             logger.error(f"Error creando archivo de árbol genealógico: {e}")
             return None
     
-    def handle_telp_command(self, chat_id, user_id, user_info, numero):
+    def handle_telp_command(self, chat_id, user_id, user_info, numero, message_id=None):
         """Manejar comando /telp"""
         # Verificar cooldown (8 segundos)
         current_time = time.time()
@@ -1073,7 +1082,8 @@ class RespaldoDoxBot:
                 self.send_message(
                     chat_id,
                     f"⏰ <b>Espera {int(time_left)} segundos** antes de hacer otra consulta.\n\n"
-                    "🛡️ *Sistema anti-spam activo*"
+                    "🛡️ *Sistema anti-spam activo*",
+                    reply_to_message_id=message_id
                 )
                 return
         
@@ -1165,7 +1175,7 @@ class RespaldoDoxBot:
                     include_image=True
                 )
     
-    def handle_arg_command(self, chat_id, user_id, user_info, dni):
+    def handle_arg_command(self, chat_id, user_id, user_info, dni, message_id=None):
         """Manejar comando /arg"""
         # Verificar cooldown (8 segundos)
         current_time = time.time()
@@ -1175,7 +1185,8 @@ class RespaldoDoxBot:
                 self.send_message(
                     chat_id,
                     f"⏰ <b>Espera {int(time_left)} segundos** antes de hacer otra consulta.\n\n"
-                    "🛡️ *Sistema anti-spam activo*"
+                    "🛡️ *Sistema anti-spam activo*",
+                    reply_to_message_id=message_id
                 )
                 return
         
@@ -1392,7 +1403,7 @@ class RespaldoDoxBot:
         else:
             return f"Usuario {user_info.get('id', 'Desconocido')}"
     
-    def handle_message(self, chat_id, user_id, user_info, text, chat_type=None, chat_title=None):
+    def handle_message(self, chat_id, user_id, user_info, text, chat_type=None, chat_title=None, message_id=None):
         """Manejar mensajes de texto"""
         # Solo procesar comandos válidos
         if not self.is_command(text):
@@ -1420,10 +1431,11 @@ class RespaldoDoxBot:
                     "❌ <b>Error:</b> Debes proporcionar un número de DNI.\n\n"
                     "📝 <b>Uso correcto:</b> `/dni 12345678`\n"
                     "📝 <b>Ejemplo:</b> `/dni 44443333`\n\n"
-                    "🤖 *Respaldodox*"
+                    "🤖 *Respaldodox*",
+                    reply_to_message_id=message_id
                 )
                 return
-            self.handle_dni_command(chat_id, user_id, user_info, dni)
+            self.handle_dni_command(chat_id, user_id, user_info, dni, message_id)
         elif text.startswith('/nm ') or text.startswith('/NM ') or text.startswith('.nm '):
             nombres = text.split(' ', 1)[1] if len(text.split(' ')) > 1 else ""
             if not nombres:
@@ -1435,7 +1447,7 @@ class RespaldoDoxBot:
                     "🤖 *Respaldodox*"
                 )
                 return
-            self.handle_nm_command(chat_id, user_id, user_info, nombres)
+            self.handle_nm_command(chat_id, user_id, user_info, nombres, message_id)
         elif text.startswith('/telp ') or text.startswith('/TELP ') or text.startswith('.telp '):
             telefono = text.split(' ', 1)[1] if len(text.split(' ')) > 1 else ""
             if not telefono:
@@ -1448,7 +1460,7 @@ class RespaldoDoxBot:
                     "🤖 *Respaldodox*"
                 )
                 return
-            self.handle_telp_command(chat_id, user_id, user_info, telefono)
+            self.handle_telp_command(chat_id, user_id, user_info, telefono, message_id)
         elif text.startswith('/arg ') or text.startswith('/ARG ') or text.startswith('.arg '):
             dni = text.split(' ', 1)[1] if len(text.split(' ')) > 1 else ""
             if not dni:
@@ -1460,7 +1472,7 @@ class RespaldoDoxBot:
                     "🤖 *Respaldodox*"
                 )
                 return
-            self.handle_arg_command(chat_id, user_id, user_info, dni)
+            self.handle_arg_command(chat_id, user_id, user_info, dni, message_id)
         elif text.startswith('/cmds') or text.startswith('/CMDS') or text.startswith('.cmds'):
             self.handle_cmds_command(chat_id)
     
@@ -1477,7 +1489,8 @@ class RespaldoDoxBot:
                 chat_title = message['chat'].get('title')
                 
                 if text:
-                    self.handle_message(chat_id, user_id, user_info, text, chat_type, chat_title)
+                    message_id = message.get('message_id')
+                    self.handle_message(chat_id, user_id, user_info, text, chat_type, chat_title, message_id)
             
             elif 'callback_query' in update:
                 callback_query = update['callback_query']
