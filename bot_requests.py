@@ -1324,11 +1324,16 @@ class RespaldoDoxBot:
                     logger.info(f"Respuesta formateada, longitud: {len(response)}")
                     
                     # Verificar si es un archivo
+                    logger.info(f"Tipo de respuesta: {type(response)}")
+                    logger.info(f"Contenido de respuesta: {response[:100]}...")
+                    logger.info(f"¿Termina en .txt?: {response.endswith('.txt') if isinstance(response, str) else False}")
+                    
                     if isinstance(response, str) and response.endswith('.txt'):
                         # Es un archivo, enviarlo como documento
                         logger.info(f"Enviando archivo: {response}")
                         caption = f"🌳 <b>Árbol Genealógico - DNI: {dni}</b>\n\n📊 <b>Total familiares:</b> {len(arbol_data['FAMILIARES'])}\n\n📄 <b>Los datos son muy largos, por eso te enviamos un archivo TXT</b>\n\n🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>"
-                        self.send_document_with_image(chat_id, response, caption)
+                        result = self.send_document_with_image(chat_id, response, caption)
+                        logger.info(f"Resultado del envío de archivo: {result}")
                         
                         # Eliminar archivo temporal
                         try:
@@ -1337,6 +1342,7 @@ class RespaldoDoxBot:
                             pass
                     else:
                         # Es texto normal, editar mensaje
+                        logger.info("Procesando como texto normal")
                         if loading_msg and 'result' in loading_msg:
                             message_id = loading_msg['result']['message_id']
                             logger.info(f"Editando mensaje {message_id} en chat {chat_id}")
