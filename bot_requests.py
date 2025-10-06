@@ -159,8 +159,14 @@ class RespaldoDoxBot:
             data['reply_to_message_id'] = reply_to_message_id
         
         try:
+            logger.info(f"Enviando mensaje a chat_id={chat_id}, text_length={len(text)}")
             response = requests.post(url, json=data)
-            return response.json()
+            result = response.json()
+            
+            if not result.get('ok'):
+                logger.error(f"Error API Telegram: {result}")
+            
+            return result
         except Exception as e:
             logger.error(f"Error enviando mensaje: {e}")
             return None
@@ -172,6 +178,11 @@ class RespaldoDoxBot:
     def send_message_with_image(self, chat_id, text, reply_markup=None, reply_to_message_id=None):
         """Enviar mensaje con imagen adjunta"""
         try:
+            # Verificar si el archivo existe
+            if not os.path.exists('imagen.jpg'):
+                logger.error("Archivo imagen.jpg no encontrado, enviando mensaje sin imagen")
+                return self.send_message(chat_id, text, reply_markup, include_image=False, reply_to_message_id=reply_to_message_id)
+            
             # Leer la imagen
             with open('imagen.jpg', 'rb') as photo:
                 files = {'photo': photo}
@@ -187,14 +198,22 @@ class RespaldoDoxBot:
                     data['reply_to_message_id'] = reply_to_message_id
                 
                 url = f"{TELEGRAM_API_URL}/sendPhoto"
+                logger.info(f"Enviando foto a chat_id={chat_id}, caption_length={len(text)}")
                 response = requests.post(url, files=files, data=data)
-                return response.json()
+                result = response.json()
+                
+                if not result.get('ok'):
+                    logger.error(f"Error API Telegram: {result}")
+                    # Si falla la foto, enviar mensaje sin imagen
+                    return self.send_message(chat_id, text, reply_markup, include_image=False, reply_to_message_id=reply_to_message_id)
+                
+                return result
         except FileNotFoundError:
             logger.error("Archivo imagen.jpg no encontrado, enviando mensaje sin imagen")
-            return self.send_message(chat_id, text, reply_markup, include_image=False)
+            return self.send_message(chat_id, text, reply_markup, include_image=False, reply_to_message_id=reply_to_message_id)
         except Exception as e:
             logger.error(f"Error enviando mensaje con imagen: {e}")
-            return self.send_message(chat_id, text, reply_markup, include_image=False)
+            return self.send_message(chat_id, text, reply_markup, include_image=False, reply_to_message_id=reply_to_message_id)
     
     def send_photo(self, chat_id, photo_bytes, caption=None, reply_to_message_id=None):
         """Enviar foto a Telegram"""
