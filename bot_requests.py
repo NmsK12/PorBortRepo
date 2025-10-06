@@ -341,6 +341,7 @@ class RespaldoDoxBot:
     def consultar_dni(self, dni):
         """Consultar información del DNI en la API"""
         url = f"{API_BASE_URL}?dni={dni}&key={API_KEY}"
+        logger.info(f"URL construida para DNI: {url}")
         
         try:
             logger.info(f"Consultando API DNI: {url}")
@@ -662,6 +663,9 @@ class RespaldoDoxBot:
         try:
             logger.info(f"Consultando API nombres: {url}")
             logger.info(f"Parámetros: {params}")
+            # Construir URL completa para debug
+            full_url = f"{url}?nombres={nombres}&apellidos={apellidos}&key=9d2c423573b857e46235f9c50645f"
+            logger.info(f"URL completa nombres: {full_url}")
             response = requests.get(url, params=params, timeout=10)
             logger.info(f"Respuesta API nombres - Status: {response.status_code}")
             
