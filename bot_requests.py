@@ -343,15 +343,20 @@ class RespaldoDoxBot:
         url = f"{API_BASE_URL}?dni={dni}&key={API_KEY}"
         
         try:
+            logger.info(f"Consultando API DNI: {url}")
             response = requests.get(url, timeout=10)
+            logger.info(f"Respuesta API DNI - Status: {response.status_code}")
+            
             if response.status_code == 200:
                 data = response.json()
+                logger.info(f"Datos recibidos de API DNI: {data}")
                 return data
             else:
-                logger.error(f"API error: {response.status_code}")
+                logger.error(f"API DNI error: {response.status_code}")
+                logger.error(f"Respuesta completa: {response.text}")
                 return None
         except Exception as e:
-            logger.error(f"Error al consultar API: {e}")
+            logger.error(f"Error al consultar API DNI: {e}")
             return None
     
     def formatear_respuesta_dni(self, data, dni, user_display):
@@ -655,12 +660,18 @@ class RespaldoDoxBot:
         }
         
         try:
+            logger.info(f"Consultando API nombres: {url}")
+            logger.info(f"Parámetros: {params}")
             response = requests.get(url, params=params, timeout=10)
+            logger.info(f"Respuesta API nombres - Status: {response.status_code}")
+            
             if response.status_code == 200:
                 data = response.json()
+                logger.info(f"Datos recibidos de API nombres: {data}")
                 return data
             else:
-                logger.error(f"API error: {response.status_code}")
+                logger.error(f"API nombres error: {response.status_code}")
+                logger.error(f"Respuesta completa: {response.text}")
                 return None
         except Exception as e:
             logger.error(f"Error al consultar API de nombres: {e}")
