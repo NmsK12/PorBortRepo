@@ -360,7 +360,7 @@ class RespaldoDoxBot:
 """
         return response
     
-    def handle_start_command(self, chat_id):
+    def handle_start_command(self, chat_id, message_id=None):
         """Manejar comando /start"""
         welcome_message = """
 🤖 <b>BOT DE RESPALDO DOX v2.0</b>
@@ -377,7 +377,7 @@ class RespaldoDoxBot:
 ¡Estoy aquí para ayudarte! 🚀
         """
         
-        self.send_message(chat_id, welcome_message)
+        self.send_message(chat_id, welcome_message, reply_to_message_id=message_id)
     
     def handle_dni_command(self, chat_id, user_id, user_info, dni, message_id=None):
         """Manejar comando /dni"""
@@ -492,7 +492,7 @@ class RespaldoDoxBot:
     
     # Funciones execute_*_consulta eliminadas - respuestas directas
     
-    def handle_cmds_command(self, chat_id):
+    def handle_cmds_command(self, chat_id, message_id=None):
         """Manejar comando /cmds"""
         keyboard = {
             "inline_keyboard": [
@@ -511,7 +511,7 @@ class RespaldoDoxBot:
 🤖 <b>Respaldodox</b> - Tu asistente para consultas de DNI
         """
         
-        self.send_message(chat_id, message, keyboard)
+        self.send_message(chat_id, message, keyboard, reply_to_message_id=message_id)
     
     def consultar_nombres(self, nombres, apellidos):
         """Consultar información por nombres en la API"""
@@ -1426,7 +1426,7 @@ class RespaldoDoxBot:
                 return
         
         if text.startswith('/start'):
-            self.handle_start_command(chat_id)
+            self.handle_start_command(chat_id, message_id)
         elif text.startswith('/adduser '):
             username = text.split(' ', 1)[1] if len(text.split(' ')) > 1 else ""
             self.handle_adduser_command(chat_id, user_id, user_info, username)
@@ -1484,7 +1484,7 @@ class RespaldoDoxBot:
                 return
             self.handle_arg_command(chat_id, user_id, user_info, dni, message_id)
         elif text.startswith('/cmds') or text.startswith('/CMDS') or text.startswith('.cmds'):
-            self.handle_cmds_command(chat_id)
+            self.handle_cmds_command(chat_id, message_id)
     
     def process_update(self, update):
         """Procesar una actualización de Telegram"""
