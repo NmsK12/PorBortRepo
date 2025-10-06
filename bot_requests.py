@@ -6,6 +6,7 @@ import threading
 from queue import Queue
 import base64
 from threading import Thread
+import os
 
 # Configuración del bot
 BOT_TOKEN = "7735457887:AAF-bzmviBfh5x1kuMe0IQaaP_Ij9VoBpxM"
@@ -33,6 +34,15 @@ class RespaldoDoxBot:
         self.last_update_id = 0
         self.running = True
         self.start_consulta_processor()
+        
+        # Configuración de seguridad
+        self.ADMIN_ID = 6862902399  # Tu ID de administrador
+        self.ALLOWED_GROUPS = [
+            "respaldochoco",
+            "𝑮𝑹𝑼𝑷𝑶 𝑽𝑰𝑷 𝒁𝑮𝑨𝑻𝑶𝑶 2.0",
+            "ᴄʜᴏᴄᴏ GRP"
+        ]
+        self.AUTHORIZED_USERS = set()  # Usuarios autorizados para privado
     
     def escape_html(self, text):
         """Escapar caracteres especiales para HTML"""
@@ -41,6 +51,92 @@ class RespaldoDoxBot:
         # Escapar caracteres HTML
         text = str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
         return text
+    
+    def is_admin(self, user_id):
+        """Verificar si el usuario es administrador"""
+        return user_id == self.ADMIN_ID
+    
+    def is_group_allowed(self, chat_title):
+        """Verificar si el grupo está permitido"""
+        if not chat_title:
+            return False
+        return chat_title in self.ALLOWED_GROUPS
+    
+    def is_user_authorized(self, user_id):
+        """Verificar si el usuario está autorizado para privado"""
+        return user_id in self.AUTHORIZED_USERS
+    
+    def can_use_bot(self, chat_type, chat_title, user_id):
+        """Verificar si se puede usar el bot en este contexto"""
+        # Si es grupo, verificar si está en la lista permitida
+        if chat_type == "group" or chat_type == "supergroup":
+            return self.is_group_allowed(chat_title)
+        
+        # Si es privado, verificar si el usuario está autorizado
+        elif chat_type == "private":
+            return self.is_user_authorized(user_id)
+        
+        return False
+    
+    def handle_adduser_command(self, chat_id, user_id, user_info, username):
+        """Manejar comando /adduser"""
+        if not self.is_admin(user_id):
+            self.send_message(chat_id, "❌ <b>Acceso denegado.</b>\n\nSolo el administrador puede usar este comando.", include_image=True)
+            return
+        
+        if not username:
+            self.send_message(chat_id, "❌ <b>Uso incorrecto:</b>\n\n<code>/adduser @usuario</code>\n\nEjemplo: <code>/adduser @juan123</code>", include_image=True)
+            return
+        
+        # Remover @ si está presente
+        username = username.replace('@', '')
+        
+        # Agregar usuario a la lista de autorizados
+        self.AUTHORIZED_USERS.add(username)
+        
+        self.send_message(chat_id, f"✅ <b>Usuario autorizado</b>\n\n👤 <b>Usuario:</b> @{username}\n🔓 <b>Estado:</b> Autorizado para privado\n\n🤖 <i>Acción realizada por: {self.get_user_display_name(user_info)}</i>", include_image=True)
+    
+    def handle_unuser_command(self, chat_id, user_id, user_info, username):
+        """Manejar comando /unuser"""
+        if not self.is_admin(user_id):
+            self.send_message(chat_id, "❌ <b>Acceso denegado.</b>\n\nSolo el administrador puede usar este comando.", include_image=True)
+            return
+        
+        if not username:
+            self.send_message(chat_id, "❌ <b>Uso incorrecto:</b>\n\n<code>/unuser @usuario</code>\n\nEjemplo: <code>/unuser @juan123</code>", include_image=True)
+            return
+        
+        # Remover @ si está presente
+        username = username.replace('@', '')
+        
+        # Remover usuario de la lista de autorizados
+        if username in self.AUTHORIZED_USERS:
+            self.AUTHORIZED_USERS.remove(username)
+            self.send_message(chat_id, f"❌ <b>Usuario desautorizado</b>\n\n👤 <b>Usuario:</b> @{username}\n🔒 <b>Estado:</b> Sin acceso a privado\n\n🤖 <i>Acción realizada por: {self.get_user_display_name(user_info)}</i>", include_image=True)
+        else:
+            self.send_message(chat_id, f"⚠️ <b>Usuario no encontrado</b>\n\n👤 <b>Usuario:</b> @{username}\n❌ <b>Estado:</b> No estaba autorizado\n\n🤖 <i>Acción realizada por: {self.get_user_display_name(user_info)}</i>", include_image=True)
+    
+    def send_access_denied_message(self, chat_id, chat_type, chat_title):
+        """Enviar mensaje de acceso denegado"""
+        if chat_type == "private":
+            message = "❌ <b>Bot no disponible en privado</b>\n\n"
+            message += "🔒 <b>Este bot solo funciona en grupos autorizados.</b>\n\n"
+            message += "📞 <b>Para usarlo en un grupo, contacta a:</b>\n"
+            message += "• @zGatoO\n"
+            message += "• @WinniePoohOFC\n"
+            message += "• @choco_tete\n\n"
+            message += "🤖 <i>Respaldodox v2.0</i>"
+        else:
+            message = "❌ <b>Bot no autorizado para este grupo</b>\n\n"
+            message += f"🏷️ <b>Grupo:</b> {self.escape_html(chat_title or 'Sin nombre')}\n"
+            message += "🔒 <b>Este bot solo funciona en grupos autorizados.</b>\n\n"
+            message += "📞 <b>Para autorización, contacta a:</b>\n"
+            message += "• @zGatoO\n"
+            message += "• @WinniePoohOFC\n"
+            message += "• @choco_tete\n\n"
+            message += "🤖 <i>Respaldodox v2.0</i>"
+        
+        self.send_message(chat_id, message, include_image=True)
     
     def start_consulta_processor(self):
         """Iniciar el procesador de consultas en cola"""
@@ -965,7 +1061,85 @@ class RespaldoDoxBot:
                     response += f"       {emoji_verif} Verificación: {verificacion}\n\n"
         
         response += f"🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>"
+        
+        # Si hay muchos familiares, crear archivo TXT
+        if len(familiares) > 10:
+            return self.crear_archivo_arbol_genealogico(familiares, dni, user_display, data)
+        
         return response
+    
+    def crear_archivo_arbol_genealogico(self, familiares, dni, user_display, data):
+        """Crear archivo TXT para árbol genealógico con muchos familiares"""
+        try:
+            # Crear contenido del archivo
+            contenido = f"[RESPALDODOX-CHOCO] ÁRBOL GENEALÓGICO\n"
+            contenido += f"=" * 50 + "\n\n"
+            contenido += f"DNI: {dni}\n"
+            contenido += f"Tipo de consulta: {data.get('TIPO_CONSULTA', 'N/A')}\n"
+            contenido += f"Request ID: {data.get('request_id', 'N/A')}\n"
+            contenido += f"Total familiares: {len(familiares)}\n\n"
+            
+            # Agrupar por relación
+            relaciones = {}
+            for familiar in familiares:
+                relacion = familiar.get('RELACION', 'DESCONOCIDO')
+                if relacion not in relaciones:
+                    relaciones[relacion] = []
+                relaciones[relacion].append(familiar)
+            
+            # Escribir por categorías
+            for relacion, lista_familiares in relaciones.items():
+                if relacion == 'PADRE':
+                    contenido += f"PADRES:\n"
+                elif relacion == 'MADRE':
+                    contenido += f"MADRES:\n"
+                elif relacion == 'HERMANO' or relacion == 'HERMANA':
+                    contenido += f"HERMANOS/AS:\n"
+                elif relacion == 'HIJO' or relacion == 'HIJA':
+                    contenido += f"HIJOS/AS:\n"
+                elif relacion == 'ABUELO' or relacion == 'ABUELA' or relacion == 'ABUELA PATERNO' or relacion == 'ABUELO MATERNO':
+                    contenido += f"ABUELOS/AS:\n"
+                elif relacion == 'CUÑADO' or relacion == 'CUÑADA':
+                    contenido += f"CUÑADOS/AS:\n"
+                elif relacion == 'TIO' or relacion == 'TIA':
+                    contenido += f"TIOS/AS:\n"
+                elif relacion == 'PRIMO' or relacion == 'PRIMA':
+                    contenido += f"PRIMOS/AS:\n"
+                elif relacion == 'SOBRINO' or relacion == 'SOBRINA':
+                    contenido += f"SOBRINOS/AS:\n"
+                elif relacion == 'NIETO' or relacion == 'NIETA':
+                    contenido += f"NIETOS/AS:\n"
+                elif relacion == 'BISABUELO' or relacion == 'BISABUELA':
+                    contenido += f"BISABUELOS/AS:\n"
+                else:
+                    contenido += f"{relacion.upper()}S:\n"
+                
+                for i, familiar in enumerate(lista_familiares, 1):
+                    nombre = f"{familiar.get('NOMBRES', 'N/A')} {familiar.get('APELLIDOS', 'N/A')}"
+                    dni_familiar = familiar.get('DNI', 'N/A')
+                    edad = familiar.get('EDAD', 'N/A')
+                    sexo = familiar.get('SEXO', 'N/A')
+                    verificacion = familiar.get('VERIFICACION', 'N/A')
+                    
+                    contenido += f"   {i}. {nombre}\n"
+                    contenido += f"       DNI: {dni_familiar}\n"
+                    contenido += f"       Edad: {edad} años\n"
+                    contenido += f"       Sexo: {sexo}\n"
+                    contenido += f"       Verificación: {verificacion}\n\n"
+            
+            contenido += f"Consulta realizada por: {user_display}\n"
+            contenido += f"Fecha: {time.strftime('%d/%m/%Y %H:%M:%S')}\n"
+            
+            # Guardar archivo
+            filename = f"arbol_genealogico_{dni}_{int(time.time())}.txt"
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write(contenido)
+            
+            return filename
+            
+        except Exception as e:
+            logger.error(f"Error creando archivo de árbol genealógico: {e}")
+            return None
     
     def handle_telp_command(self, chat_id, user_id, user_info, numero):
         """Manejar comando /telp"""
@@ -1160,14 +1334,26 @@ class RespaldoDoxBot:
                     response = self.formatear_respuesta_arbol_genealogico(arbol_data, dni, user_display)
                     logger.info(f"Respuesta formateada, longitud: {len(response)}")
                     
-                    # Editar mensaje de carga
-                    if loading_msg and 'result' in loading_msg:
-                        message_id = loading_msg['result']['message_id']
-                        logger.info(f"Editando mensaje {message_id} en chat {chat_id}")
-                        self.edit_message(chat_id, message_id, response, include_image=True)
-                        logger.info("Mensaje editado exitosamente")
+                    # Verificar si es un archivo
+                    if isinstance(response, str) and response.endswith('.txt'):
+                        # Es un archivo, enviarlo como documento
+                        logger.info(f"Enviando archivo: {response}")
+                        self.send_document_with_image(chat_id, response, f"🌳 <b>Árbol Genealógico - DNI: {dni}</b>\n\n📊 <b>Total familiares:</b> {len(arbol_data['FAMILIARES'])}\n\n🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>")
+                        
+                        # Eliminar archivo temporal
+                        try:
+                            os.remove(response)
+                        except:
+                            pass
                     else:
-                        logger.error("No se pudo obtener message_id del loading_msg")
+                        # Es texto normal, editar mensaje
+                        if loading_msg and 'result' in loading_msg:
+                            message_id = loading_msg['result']['message_id']
+                            logger.info(f"Editando mensaje {message_id} en chat {chat_id}")
+                            self.edit_message(chat_id, message_id, response, include_image=True)
+                            logger.info("Mensaje editado exitosamente")
+                        else:
+                            logger.error("No se pudo obtener message_id del loading_msg")
                 else:
                     # No hay familiares en la respuesta
                     if loading_msg and 'result' in loading_msg:
@@ -1206,7 +1392,7 @@ class RespaldoDoxBot:
     
     def is_command(self, text):
         """Verificar si el texto es un comando válido"""
-        valid_commands = ['/start', '/dni', '/DNI', '.dni', '/cmds', '/CMDS', '.cmds', '/nm', '/NM', '.nm', '/telp', '/TELP', '.telp', '/arg', '/ARG', '.arg']
+        valid_commands = ['/start', '/dni', '/DNI', '.dni', '/cmds', '/CMDS', '.cmds', '/nm', '/NM', '.nm', '/telp', '/TELP', '.telp', '/arg', '/ARG', '.arg', '/adduser', '/unuser']
         return any(text.startswith(cmd) for cmd in valid_commands)
     
     def get_user_display_name(self, user_info):
@@ -1221,14 +1407,26 @@ class RespaldoDoxBot:
         else:
             return f"Usuario {user_info.get('id', 'Desconocido')}"
     
-    def handle_message(self, chat_id, user_id, user_info, text):
+    def handle_message(self, chat_id, user_id, user_info, text, chat_type=None, chat_title=None):
         """Manejar mensajes de texto"""
         # Solo procesar comandos válidos
         if not self.is_command(text):
             return  # Ignorar mensajes que no son comandos
         
+        # Verificar acceso (excepto para comandos de administración)
+        if not text.startswith('/adduser') and not text.startswith('/unuser'):
+            if not self.can_use_bot(chat_type, chat_title, user_id):
+                self.send_access_denied_message(chat_id, chat_type, chat_title)
+                return
+        
         if text.startswith('/start'):
             self.handle_start_command(chat_id)
+        elif text.startswith('/adduser '):
+            username = text.split(' ', 1)[1] if len(text.split(' ')) > 1 else ""
+            self.handle_adduser_command(chat_id, user_id, user_info, username)
+        elif text.startswith('/unuser '):
+            username = text.split(' ', 1)[1] if len(text.split(' ')) > 1 else ""
+            self.handle_unuser_command(chat_id, user_id, user_info, username)
         elif text.startswith('/dni ') or text.startswith('/DNI ') or text.startswith('.dni '):
             dni = text.split(' ', 1)[1] if len(text.split(' ')) > 1 else ""
             if not dni:
@@ -1290,9 +1488,11 @@ class RespaldoDoxBot:
                 user_id = message['from']['id']
                 user_info = message['from']
                 text = message.get('text', '')
+                chat_type = message['chat'].get('type')
+                chat_title = message['chat'].get('title')
                 
                 if text:
-                    self.handle_message(chat_id, user_id, user_info, text)
+                    self.handle_message(chat_id, user_id, user_info, text, chat_type, chat_title)
             
             elif 'callback_query' in update:
                 callback_query = update['callback_query']
