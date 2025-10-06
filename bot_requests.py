@@ -345,7 +345,7 @@ class RespaldoDoxBot:
         
         try:
             logger.info(f"Consultando API DNI: {url}")
-            response = requests.get(url, timeout=10)
+            response = requests.get(url, timeout=30)
             logger.info(f"Respuesta API DNI - Status: {response.status_code}")
             
             if response.status_code == 200:
@@ -666,7 +666,7 @@ class RespaldoDoxBot:
             # Construir URL completa para debug
             full_url = f"{url}?nombres={nombres}&apellidos={apellidos}&key=9d2c423573b857e46235f9c50645f"
             logger.info(f"URL completa nombres: {full_url}")
-            response = requests.get(url, params=params, timeout=10)
+            response = requests.get(url, params=params, timeout=30)
             logger.info(f"Respuesta API nombres - Status: {response.status_code}")
             
             if response.status_code == 200:
@@ -945,7 +945,7 @@ class RespaldoDoxBot:
         params = {'tel': numero}
         
         try:
-            response = requests.get(url, params=params, timeout=10)
+            response = requests.get(url, params=params, timeout=30)
             if response.status_code == 200:
                 data = response.json()
                 return data
