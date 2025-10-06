@@ -1103,7 +1103,8 @@ class RespaldoDoxBot:
                 "📝 <b>Uso correcto:</b> `/telp 12345678` (DNI de 8 dígitos)\n"
                 "📝 <b>Uso correcto:</b> `/telp 987654321` (Teléfono de 9 dígitos)\n"
                 "📝 <b>Ejemplo:</b> `/telp 44443333`\n\n"
-                "🤖 *Respaldodox*"
+                "🤖 *Respaldodox*",
+                reply_to_message_id=message_id
             )
             return
         
@@ -1118,7 +1119,8 @@ class RespaldoDoxBot:
                 f"❌ <b>Error:</b> El número debe tener 8 dígitos (DNI) o 9 dígitos (teléfono).\n\n"
                 f"📝 <b>Recibido:</b> {len(numero)} dígitos\n"
                 f"📝 <b>Debe ser:</b> 8 dígitos para DNI o 9 dígitos para teléfono\n\n"
-                "🤖 *Respaldodox*"
+                "🤖 *Respaldodox*",
+                reply_to_message_id=message_id
             )
             return
         
@@ -1127,7 +1129,8 @@ class RespaldoDoxBot:
             chat_id,
             f"🔍 <b>Consultando {tipo_consulta.lower()}...**\n"
             f"📞 {tipo_consulta}: `{numero}`\n"
-            "⏳ Procesando consulta..."
+            "⏳ Procesando consulta...",
+            reply_to_message_id=message_id
         )
         
         try:
@@ -1143,13 +1146,13 @@ class RespaldoDoxBot:
                 
                 # Editar mensaje de carga
                 if loading_msg and 'result' in loading_msg:
-                    message_id = loading_msg['result']['message_id']
-                    self.edit_message(chat_id, message_id, response, include_image=True)
+                    loading_message_id = loading_msg['result']['message_id']
+                    self.edit_message(chat_id, loading_message_id, response, include_image=True)
             else:
                 if loading_msg and 'result' in loading_msg:
-                    message_id = loading_msg['result']['message_id']
+                    loading_message_id = loading_msg['result']['message_id']
                     self.edit_message(
-                        chat_id, message_id,
+                        chat_id, loading_message_id,
                         f"❌ <b>No se encontró información</b> para: `{numero}`\n\n"
                         "🔍 Verifica el número e intenta nuevamente.\n\n"
                         f"🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>",
@@ -1159,9 +1162,9 @@ class RespaldoDoxBot:
         except requests.exceptions.Timeout:
             logger.error(f"Timeout al consultar teléfono {numero}")
             if loading_msg and 'result' in loading_msg:
-                message_id = loading_msg['result']['message_id']
+                loading_message_id = loading_msg['result']['message_id']
                 self.edit_message(
-                    chat_id, message_id,
+                    chat_id, loading_message_id,
                     f"⏰ <b>Timeout en la consulta</b> del número: `{numero}`\n\n"
                     "🔄 La API está tardando más de 30 segundos.\n"
                     "💡 Intenta nuevamente en unos momentos.\n\n"
@@ -1171,9 +1174,9 @@ class RespaldoDoxBot:
         except Exception as e:
             logger.error(f"Error al consultar teléfono {numero}: {e}")
             if loading_msg and 'result' in loading_msg:
-                message_id = loading_msg['result']['message_id']
+                loading_message_id = loading_msg['result']['message_id']
                 self.edit_message(
-                    chat_id, message_id,
+                    chat_id, loading_message_id,
                     f"❌ <b>Error al consultar</b> el número: `{numero}`\n\n"
                     "🔄 Intenta nuevamente en unos momentos.\n\n"
                     f"🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>",
