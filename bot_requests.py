@@ -407,8 +407,8 @@ class RespaldoDoxBot:
             if time_left > 0:
                 self.send_message(
                     chat_id,
-                    f"⏰ <b>Espera {int(time_left)} segundos** antes de hacer otra consulta.\n\n"
-                    "🛡️ *Sistema anti-spam activo*",
+                    f"⏰ <b>Espera {int(time_left)} segundos</b> antes de hacer otra consulta.\n\n"
+                    "🛡️ <b>Sistema anti-spam activo</b>",
                     reply_to_message_id=message_id
                 )
                 return
@@ -665,8 +665,8 @@ class RespaldoDoxBot:
             if time_left > 0:
                 self.send_message(
                     chat_id,
-                    f"⏰ <b>Espera {int(time_left)} segundos** antes de hacer otra consulta.\n\n"
-                    "🛡️ *Sistema anti-spam activo*",
+                    f"⏰ <b>Espera {int(time_left)} segundos</b> antes de hacer otra consulta.\n\n"
+                    "🛡️ <b>Sistema anti-spam activo</b>",
                     reply_to_message_id=message_id
                 )
                 return
@@ -684,7 +684,7 @@ class RespaldoDoxBot:
                     "❌ <b>Error:</b> Formato incorrecto.\n\n"
                     "📝 <b>Uso correcto:</b> `/nm Pedro|Castillo|Terrones`\n"
                     "📝 <b>Ejemplo:</b> `/nm Juan|Perez|Gonzalez`\n\n"
-                    "🤖 *Respaldodox*",
+                    "🤖 <b>Respaldodox</b>",
                     reply_to_message_id=message_id
                 )
                 return
@@ -698,7 +698,7 @@ class RespaldoDoxBot:
                     "❌ <b>Error:</b> Debes proporcionar nombres y apellidos.\n\n"
                     "📝 <b>Uso correcto:</b> `/nm Pedro|Castillo|Terrones`\n"
                     "📝 <b>Ejemplo:</b> `/nm Juan|Perez|Gonzalez`\n\n"
-                    "🤖 *Respaldodox*"
+                    "🤖 <b>Respaldodox</b>"
                 )
                 return
             
@@ -781,7 +781,7 @@ class RespaldoDoxBot:
                 chat_id,
                 f"❌ <b>Error al procesar</b> la búsqueda.\n\n"
                 "🔄 Intenta nuevamente en unos momentos.\n\n"
-                "🤖 *Respaldodox*"
+                "🤖 <b>Respaldodox</b>"
             )
     
     def handle_callback_query(self, chat_id, message_id, callback_data):
@@ -800,7 +800,7 @@ class RespaldoDoxBot:
                 "• Reemplaza `12345678` con el DNI que quieres consultar\n"
                 "• El DNI debe tener exactamente 8 dígitos\n\n"
                 "✅ <b>Ejemplo:</b> `/dni 44443333`\n\n"
-                "🤖 *Respaldodox - Bot de respaldo*"
+                "🤖 <b>Respaldodox - Bot de respaldo</b>"
             )
             self.edit_message_with_keyboard(chat_id, message_id, response_text, keyboard, include_image=True)
         elif callback_data == "nombres_info":
@@ -819,7 +819,7 @@ class RespaldoDoxBot:
                 "✅ <b>Ejemplos:</b>\n"
                 "• `/nm Juan|Perez|Gonzalez`\n"
                 "• `/nm Maria,Jose|Lopez|Martinez`\n\n"
-                "🤖 *Respaldodox - Bot de respaldo*"
+                "🤖 <b>Respaldodox - Bot de respaldo</b>"
             )
             self.edit_message_with_keyboard(chat_id, message_id, response_text, keyboard, include_image=True)
         elif callback_data == "telefonos_info":
@@ -838,7 +838,7 @@ class RespaldoDoxBot:
                 "✅ <b>Ejemplos:</b>\n"
                 "• `/telp 44443333` (DNI)\n"
                 "• `/telp 987654321` (Teléfono)\n\n"
-                "🤖 *Respaldodox - Bot de respaldo*"
+                "🤖 <b>Respaldodox - Bot de respaldo</b>"
             )
             self.edit_message_with_keyboard(chat_id, message_id, response_text, keyboard, include_image=True)
         elif callback_data == "arbol_info":
@@ -860,7 +860,7 @@ class RespaldoDoxBot:
                 "• Información de abuelos\n"
                 "• Lista de hermanos\n"
                 "• Datos de hijos\n\n"
-                "🤖 *Respaldodox - Bot de respaldo*"
+                "🤖 <b>Respaldodox - Bot de respaldo</b>"
             )
             self.edit_message_with_keyboard(chat_id, message_id, response_text, keyboard, include_image=True)
         elif callback_data == "back_to_menu":
@@ -1105,8 +1105,8 @@ class RespaldoDoxBot:
             if time_left > 0:
                 self.send_message(
                     chat_id,
-                    f"⏰ <b>Espera {int(time_left)} segundos** antes de hacer otra consulta.\n\n"
-                    "🛡️ *Sistema anti-spam activo*",
+                    f"⏰ <b>Espera {int(time_left)} segundos</b> antes de hacer otra consulta.\n\n"
+                    "🛡️ <b>Sistema anti-spam activo</b>",
                     reply_to_message_id=message_id
                 )
                 return
@@ -1122,7 +1122,7 @@ class RespaldoDoxBot:
                 "📝 <b>Uso correcto:</b> `/telp 12345678` (DNI de 8 dígitos)\n"
                 "📝 <b>Uso correcto:</b> `/telp 987654321` (Teléfono de 9 dígitos)\n"
                 "📝 <b>Ejemplo:</b> `/telp 44443333`\n\n"
-                "🤖 *Respaldodox*",
+                "🤖 <b>Respaldodox</b>",
                 reply_to_message_id=message_id
             )
             return
@@ -1138,7 +1138,7 @@ class RespaldoDoxBot:
                 f"❌ <b>Error:</b> El número debe tener 8 dígitos (DNI) o 9 dígitos (teléfono).\n\n"
                 f"📝 <b>Recibido:</b> {len(numero)} dígitos\n"
                 f"📝 <b>Debe ser:</b> 8 dígitos para DNI o 9 dígitos para teléfono\n\n"
-                "🤖 *Respaldodox*",
+                "🤖 <b>Respaldodox</b>",
                 reply_to_message_id=message_id
             )
             return
@@ -1146,7 +1146,7 @@ class RespaldoDoxBot:
         # Mostrar mensaje de carga inmediatamente
         loading_msg = self.send_message(
             chat_id,
-            f"🔍 <b>Consultando {tipo_consulta.lower()}...**\n"
+            f"🔍 <b>Consultando {tipo_consulta.lower()}...</b>\n"
             f"📞 {tipo_consulta}: `{numero}`\n"
             "⏳ Procesando consulta...",
             reply_to_message_id=message_id
@@ -1211,8 +1211,8 @@ class RespaldoDoxBot:
             if time_left > 0:
                 self.send_message(
                     chat_id,
-                    f"⏰ <b>Espera {int(time_left)} segundos** antes de hacer otra consulta.\n\n"
-                    "🛡️ *Sistema anti-spam activo*",
+                    f"⏰ <b>Espera {int(time_left)} segundos</b> antes de hacer otra consulta.\n\n"
+                    "🛡️ <b>Sistema anti-spam activo</b>",
                     reply_to_message_id=message_id
                 )
                 return
@@ -1227,7 +1227,7 @@ class RespaldoDoxBot:
                 "❌ <b>Error:</b> El DNI debe tener exactamente 8 dígitos.\n\n"
                 "📝 <b>Uso correcto:</b> `/arg 12345678`\n"
                 "📝 <b>Ejemplo:</b> `/arg 44443333`\n\n"
-                "🤖 *Respaldodox*",
+                "🤖 <b>Respaldodox</b>",
                 reply_to_message_id=message_id
             )
             return
@@ -1235,7 +1235,7 @@ class RespaldoDoxBot:
         # Mostrar mensaje de carga
         loading_msg = self.send_message(
             chat_id,
-            f"🌳 <b>Consultando árbol genealógico...**\n"
+            f"🌳 <b>Consultando árbol genealógico...</b>\n"
             f"📄 DNI: `{dni}`\n"
             "⏳ Esta consulta puede tardar hasta 30 segundos...\n"
             "🔄 Por favor espera pacientemente...",
@@ -1460,7 +1460,7 @@ class RespaldoDoxBot:
                     "❌ <b>Error:</b> Debes proporcionar un número de DNI.\n\n"
                     "📝 <b>Uso correcto:</b> `/dni 12345678`\n"
                     "📝 <b>Ejemplo:</b> `/dni 44443333`\n\n"
-                    "🤖 *Respaldodox*",
+                    "🤖 <b>Respaldodox</b>",
                     reply_to_message_id=message_id
                 )
                 return
@@ -1473,7 +1473,7 @@ class RespaldoDoxBot:
                     "❌ <b>Error:</b> Debes proporcionar nombres y apellidos.\n\n"
                     "📝 <b>Uso correcto:</b> `/nm Pedro|Castillo|Terrones`\n"
                     "📝 <b>Ejemplo:</b> `/nm Juan|Perez|Gonzalez`\n\n"
-                    "🤖 *Respaldodox*"
+                    "🤖 <b>Respaldodox</b>"
                 )
                 return
             self.handle_nm_command(chat_id, user_id, user_info, nombres, message_id)
@@ -1486,7 +1486,7 @@ class RespaldoDoxBot:
                     "📝 <b>Uso correcto:</b> `/telp 12345678` (DNI de 8 dígitos)\n"
                     "📝 <b>Uso correcto:</b> `/telp 987654321` (Teléfono de 9 dígitos)\n"
                     "📝 <b>Ejemplo:</b> `/telp 44443333`\n\n"
-                    "🤖 *Respaldodox*"
+                    "🤖 <b>Respaldodox</b>"
                 )
                 return
             self.handle_telp_command(chat_id, user_id, user_info, telefono, message_id)
@@ -1498,7 +1498,7 @@ class RespaldoDoxBot:
                     "❌ <b>Error:</b> Debes proporcionar un número de DNI.\n\n"
                     "📝 <b>Uso correcto:</b> `/arg 12345678`\n"
                     "📝 <b>Ejemplo:</b> `/arg 44443333`\n\n"
-                    "🤖 *Respaldodox*"
+                    "🤖 <b>Respaldodox</b>"
                 )
                 return
             self.handle_arg_command(chat_id, user_id, user_info, dni, message_id)
