@@ -199,7 +199,7 @@ class RespaldoDoxBot:
         data = {'chat_id': chat_id}
         if caption:
             data['caption'] = caption
-            data['parse_mode'] = 'Markdown'
+            data['parse_mode'] = 'HTML'
         
         try:
             response = requests.post(url, files=files, data=data)
@@ -222,7 +222,7 @@ class RespaldoDoxBot:
             'chat_id': chat_id,
             'message_id': message_id,
             'text': text,
-            'parse_mode': 'Markdown'
+            'parse_mode': 'HTML'
         }
         
         try:
@@ -246,7 +246,7 @@ class RespaldoDoxBot:
             'chat_id': chat_id,
             'message_id': message_id,
             'text': text,
-            'parse_mode': 'Markdown',
+            'parse_mode': 'HTML',
             'reply_markup': json.dumps(keyboard)
         }
         
@@ -588,6 +588,7 @@ class RespaldoDoxBot:
         data = {'chat_id': chat_id}
         if caption:
             data['caption'] = caption
+            data['parse_mode'] = 'HTML'
         
         try:
             response = requests.post(url, files=files, data=data)
