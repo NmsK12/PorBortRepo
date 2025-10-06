@@ -411,6 +411,97 @@ class RespaldoDoxBot:
                     include_image=False
                 )
     
+    def execute_nombres_consulta(self, chat_id, user_id, user_info, nombres, loading_msg):
+        """Ejecutar consulta de nombres en la cola"""
+        try:
+            # Obtener nombre de usuario para mostrar
+            user_display = self.get_user_display_name(user_info)
+            
+            # Consultar la API
+            nombres_data = self.consultar_nombres(nombres)
+            
+            if nombres_data and nombres_data.get('success'):
+                # Formatear respuesta
+                response = self.formatear_respuesta_nombres(nombres_data, nombres, user_display)
+                
+                # Si hay más de 10 resultados, crear archivo
+                if len(nombres_data['data']['results']) > 10:
+                    # Crear archivo TXT
+                    file_path = self.crear_archivo_nombres(nombres_data['data']['results'], nombres, user_display)
+                    
+                    # Enviar archivo con imagen
+                    self.send_document_with_image(chat_id, file_path, "📄 **Resultados de búsqueda por nombres**")
+                    
+                    # Eliminar mensaje de carga
+                    if loading_msg and 'result' in loading_msg:
+                        message_id = loading_msg['result']['message_id']
+                        self.delete_message(chat_id, message_id)
+                else:
+                    # Mostrar resultados en el chat
+                    if loading_msg and 'result' in loading_msg:
+                        message_id = loading_msg['result']['message_id']
+                        self.edit_message(chat_id, message_id, response, include_image=True)
+            else:
+                if loading_msg and 'result' in loading_msg:
+                    message_id = loading_msg['result']['message_id']
+                    self.edit_message(
+                        chat_id, message_id,
+                        f"❌ **No se encontraron resultados** para: `{nombres}`\n\n"
+                        "🔍 Verifica los nombres e intenta nuevamente.\n\n"
+                        f"🤖 *Consulta realizada por: {user_display}*",
+                        include_image=True
+                    )
+                
+        except Exception as e:
+            logger.error(f"Error al consultar nombres {nombres}: {e}")
+            if loading_msg and 'result' in loading_msg:
+                message_id = loading_msg['result']['message_id']
+                self.edit_message(
+                    chat_id, message_id,
+                    f"❌ **Error al consultar** los nombres: `{nombres}`\n\n"
+                    "🔄 Intenta nuevamente en unos momentos.",
+                    include_image=True
+                )
+    
+    def execute_telefono_consulta(self, chat_id, user_id, user_info, numero, loading_msg):
+        """Ejecutar consulta de teléfono en la cola"""
+        try:
+            # Obtener nombre de usuario para mostrar
+            user_display = self.get_user_display_name(user_info)
+            
+            # Consultar la API
+            telefono_data = self.consultar_telefono(numero)
+            
+            if telefono_data and telefono_data.get('coRespuesta') == '0000':
+                # Formatear respuesta
+                response = self.formatear_respuesta_telefono(telefono_data, numero, user_display)
+                
+                # Editar mensaje de carga
+                if loading_msg and 'result' in loading_msg:
+                    message_id = loading_msg['result']['message_id']
+                    self.edit_message(chat_id, message_id, response, include_image=True)
+            else:
+                if loading_msg and 'result' in loading_msg:
+                    message_id = loading_msg['result']['message_id']
+                    self.edit_message(
+                        chat_id, message_id,
+                        f"❌ **No se encontró información** para: `{numero}`\n\n"
+                        "🔍 Verifica el número e intenta nuevamente.\n\n"
+                        f"🤖 *Consulta realizada por: {user_display}*",
+                        include_image=True
+                    )
+                
+        except Exception as e:
+            logger.error(f"Error al consultar teléfono {numero}: {e}")
+            if loading_msg and 'result' in loading_msg:
+                message_id = loading_msg['result']['message_id']
+                self.edit_message(
+                    chat_id, message_id,
+                    f"❌ **Error al consultar** el número: `{numero}`\n\n"
+                    "🔄 Intenta nuevamente en unos momentos.",
+                    include_image=True
+                )
+    
     def handle_cmds_command(self, chat_id):
         """Manejar comando /cmds"""
         keyboard = {
@@ -596,56 +687,26 @@ class RespaldoDoxBot:
                 )
                 return
             
-            # Mostrar mensaje de carga
+            # Mostrar mensaje de carga inmediatamente
             loading_msg = self.send_message(
                 chat_id,
                 f"🔍 **Buscando por nombres...**\n"
                 f"👤 Nombres: `{nombres}`\n"
                 f"👥 Apellidos: `{apellidos}`\n"
-                "⏳ Por favor espera..."
+                "⏳ Tu consulta está en cola, por favor espera..."
             )
             
-            # Obtener nombre de usuario para mostrar
-            user_display = self.get_user_display_name(user_info)
-            
-            # Consultar la API
-            nombres_data = self.consultar_nombres(nombres, apellidos)
-            
-            if nombres_data:
-                # Formatear respuesta
-                response = self.formatear_respuesta_nombres(nombres_data, nombres_texto, user_display)
-                
-                # Si es un archivo, enviarlo
-                if isinstance(response, str) and response.endswith('.txt'):
-                    # Eliminar mensaje de carga
-                    if loading_msg and 'result' in loading_msg:
-                        message_id = loading_msg['result']['message_id']
-                        self.delete_message(chat_id, message_id)
-                    
-                    # Enviar archivo con imagen
-                    self.send_document_with_image(
-                        chat_id, 
-                        response, 
-                        f"**[RESPALDODOX-CHOCO] BÚSQUEDA POR NOMBRES**\n\n"
-                        f"🔍 **Búsqueda:** {nombres_texto}\n"
-                        f"📊 **Resultados:** {len(nombres_data['data']['results'])}\n\n"
-                        f"🤖 *Consulta realizada por: {user_display}*"
-                    )
-                else:
-                    # Mostrar texto normal
-                    if loading_msg and 'result' in loading_msg:
-                        message_id = loading_msg['result']['message_id']
-                        self.edit_message(chat_id, message_id, response, include_image=True)
-            else:
-                if loading_msg and 'result' in loading_msg:
-                    message_id = loading_msg['result']['message_id']
-                    self.edit_message(
-                        chat_id, message_id,
-                        f"❌ **Error al buscar** nombres: `{nombres_texto}`\n\n"
-                        "🔄 Intenta nuevamente en unos momentos.\n\n"
-                        f"🤖 *Consulta realizada por: {user_display}*",
-                        include_image=True
-                    )
+            # Agregar a la cola de consultas
+            consulta = {
+                'tipo': 'nombres',
+                'chat_id': chat_id,
+                'user_id': user_id,
+                'user_info': user_info,
+                'parametros': {'nombres': f"{nombres}|{apellidos}"},
+                'loading_msg': loading_msg
+            }
+            consulta_queue.put(consulta)
+            logger.info(f"Consulta nombres agregada a la cola para usuario {user_id}")
                 
         except Exception as e:
             logger.error(f"Error al procesar comando /nm: {e}")
@@ -934,51 +995,25 @@ class RespaldoDoxBot:
             )
             return
         
-        # Obtener nombre de usuario para mostrar
-        user_display = self.get_user_display_name(user_info)
-        
-        # Mostrar mensaje de carga
+        # Mostrar mensaje de carga inmediatamente
         loading_msg = self.send_message(
             chat_id,
             f"🔍 **Consultando {tipo_consulta.lower()}...**\n"
             f"📞 {tipo_consulta}: `{numero}`\n"
-            "⏳ Por favor espera..."
+            "⏳ Tu consulta está en cola, por favor espera..."
         )
         
-        try:
-            # Consultar la API
-            telefono_data = self.consultar_telefono(numero)
-            
-            if telefono_data:
-                # Formatear respuesta
-                response = self.formatear_respuesta_telefono(telefono_data, numero, user_display)
-                
-                # Editar mensaje de carga
-                if loading_msg and 'result' in loading_msg:
-                    message_id = loading_msg['result']['message_id']
-                    self.edit_message(chat_id, message_id, response, include_image=True)
-            else:
-                if loading_msg and 'result' in loading_msg:
-                    message_id = loading_msg['result']['message_id']
-                    self.edit_message(
-                        chat_id, message_id,
-                        f"❌ **Error al consultar** {tipo_consulta.lower()}: `{numero}`\n\n"
-                        "🔄 Intenta nuevamente en unos momentos.\n\n"
-                        f"🤖 *Consulta realizada por: {user_display}*",
-                        include_image=True
-                    )
-                
-        except Exception as e:
-            logger.error(f"Error al procesar comando /telp: {e}")
-            if loading_msg and 'result' in loading_msg:
-                message_id = loading_msg['result']['message_id']
-                self.edit_message(
-                    chat_id, message_id,
-                    f"❌ **Error al procesar** la consulta.\n\n"
-                    "🔄 Intenta nuevamente en unos momentos.\n\n"
-                    f"🤖 *Consulta realizada por: {user_display}*",
-                    include_image=True
-                )
+        # Agregar a la cola de consultas
+        consulta = {
+            'tipo': 'telefono',
+            'chat_id': chat_id,
+            'user_id': user_id,
+            'user_info': user_info,
+            'parametros': {'numero': numero},
+            'loading_msg': loading_msg
+        }
+        consulta_queue.put(consulta)
+        logger.info(f"Consulta teléfono agregada a la cola para usuario {user_id}")
     
     def handle_arg_command(self, chat_id, user_id, user_info, dni):
         """Manejar comando /arg"""
