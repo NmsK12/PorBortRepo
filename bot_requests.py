@@ -40,7 +40,8 @@ class RespaldoDoxBot:
         self.ALLOWED_GROUPS = [
             "respaldochoco",
             "𝑮𝑹𝑼𝑷𝑶 𝑽𝑰𝑷 𝒁𝑮𝑨𝑻𝑶𝑶 2.0",
-            "ᴄʜᴏᴄᴏ GRP"
+            "ᴄʜᴏᴄᴏ GRP",
+            "CHOCO VIP"
         ]
         self.AUTHORIZED_USERS = set()  # Usuarios autorizados para privado
     
@@ -1248,10 +1249,28 @@ class RespaldoDoxBot:
                     response = self.formatear_respuesta_arbol_genealogico(arbol_data, dni, user_display)
                     logger.info(f"Respuesta formateada: {response[:100]}...")
                     
-                    # Enviar nueva respuesta en lugar de editar
-                    logger.info(f"Enviando mensaje a chat {chat_id}")
-                    result = self.send_message(chat_id, response, include_image=True)
-                    logger.info(f"Resultado del envío: {result}")
+                    # Verificar si es un archivo
+                    logger.info(f"Tipo de respuesta: {type(response)}")
+                    logger.info(f"Contenido de respuesta: {response[:100]}...")
+                    logger.info(f"¿Termina en .txt?: {response.endswith('.txt') if isinstance(response, str) else False}")
+                    
+                    if isinstance(response, str) and response.endswith('.txt'):
+                        # Es un archivo, enviarlo como documento
+                        logger.info(f"Enviando archivo: {response}")
+                        caption = f"🌳 <b>Árbol Genealógico - DNI: {dni}</b>\n\n📊 <b>Total familiares:</b> {len(arbol_data['FAMILIARES'])}\n\n📄 <b>Los datos son muy largos, por eso te enviamos un archivo TXT</b>\n\n🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>"
+                        result = self.send_document_with_image(chat_id, response, caption)
+                        logger.info(f"Resultado del envío de archivo: {result}")
+                        
+                        # Eliminar archivo temporal
+                        try:
+                            os.remove(response)
+                        except:
+                            pass
+                    else:
+                        # Es texto normal, enviar mensaje
+                        logger.info("Procesando como texto normal")
+                        result = self.send_message(chat_id, response, include_image=True)
+                        logger.info(f"Resultado del envío: {result}")
                     
                     # Eliminar mensaje de carga
                     if loading_msg and 'result' in loading_msg:
