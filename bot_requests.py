@@ -1049,26 +1049,79 @@ class RespaldoDoxBot:
             )
             return
         
-        # Mostrar mensaje de carga inmediatamente
+        # Mostrar mensaje de carga
         loading_msg = self.send_message(
             chat_id,
             f"🌳 **Consultando árbol genealógico...**\n"
             f"📄 DNI: `{dni}`\n"
-            "⏳ Tu consulta está en cola, por favor espera...\n"
-            "🔄 Esta consulta puede tardar hasta 30 segundos..."
+            "⏳ Esta consulta puede tardar hasta 30 segundos...\n"
+            "🔄 Por favor espera pacientemente..."
         )
         
-        # Agregar a la cola de consultas
-        consulta = {
-            'tipo': 'arbol',
-            'chat_id': chat_id,
-            'user_id': user_id,
-            'user_info': user_info,
-            'parametros': {'dni': dni},
-            'loading_msg': loading_msg
-        }
-        consulta_queue.put(consulta)
-        logger.info(f"Consulta árbol genealógico agregada a la cola para usuario {user_id}")
+        try:
+            # Obtener nombre de usuario para mostrar
+            user_display = self.get_user_display_name(user_info)
+            
+            # Consultar la API
+            arbol_data = self.consultar_arbol_genealogico(dni)
+            
+            if arbol_data:
+                # Verificar si la respuesta tiene familiares
+                if arbol_data.get('FAMILIARES') and len(arbol_data['FAMILIARES']) > 0:
+                    # Formatear respuesta
+                    response = self.formatear_respuesta_arbol_genealogico(arbol_data, dni, user_display)
+                    
+                    # Enviar nueva respuesta en lugar de editar
+                    self.send_message(chat_id, response, include_image=True)
+                    
+                    # Eliminar mensaje de carga
+                    if loading_msg and 'result' in loading_msg:
+                        message_id = loading_msg['result']['message_id']
+                        self.delete_message(chat_id, message_id)
+                else:
+                    # No hay familiares en la respuesta
+                    self.send_message(
+                        chat_id,
+                        f"❌ **No se encontró información genealógica** para el DNI: `{dni}`\n\n"
+                        "🔍 Verifica que el número sea correcto e intenta nuevamente.\n\n"
+                        f"🤖 *Consulta realizada por: {user_display}*",
+                        include_image=True
+                    )
+                    
+                    # Eliminar mensaje de carga
+                    if loading_msg and 'result' in loading_msg:
+                        message_id = loading_msg['result']['message_id']
+                        self.delete_message(chat_id, message_id)
+            else:
+                # Error en la consulta (timeout, error de conexión, etc.)
+                self.send_message(
+                    chat_id,
+                    f"⏰ **Timeout en la consulta** del árbol genealógico para DNI: `{dni}`\n\n"
+                    "🔄 La API está tardando más de lo esperado.\n"
+                    "💡 Intenta nuevamente en unos momentos.\n\n"
+                    f"🤖 *Consulta realizada por: {user_display}*",
+                    include_image=True
+                )
+                
+                # Eliminar mensaje de carga
+                if loading_msg and 'result' in loading_msg:
+                    message_id = loading_msg['result']['message_id']
+                    self.delete_message(chat_id, message_id)
+                
+        except Exception as e:
+            logger.error(f"Error al procesar comando /arg: {e}")
+            self.send_message(
+                chat_id,
+                f"❌ **Error al procesar** la consulta.\n\n"
+                "🔄 Intenta nuevamente en unos momentos.\n\n"
+                f"🤖 *Consulta realizada por: {user_display}*",
+                include_image=True
+            )
+            
+            # Eliminar mensaje de carga
+            if loading_msg and 'result' in loading_msg:
+                message_id = loading_msg['result']['message_id']
+                self.delete_message(chat_id, message_id)
     
     def execute_arbol_consulta(self, chat_id, user_id, user_info, dni, loading_msg):
         """Ejecutar consulta árbol genealógico en la cola"""
