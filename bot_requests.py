@@ -36,7 +36,9 @@ class RespaldoDoxBot:
             "respaldochoco",
             "𝑮𝑹𝑼𝑷𝑶 𝑽𝑰𝑷 𝒁𝑮𝑨𝑻𝑶𝑶 2.0",
             "ᴄʜᴏᴄᴏ GRP",
-            "CHOCO VIP"
+            "CHOCO VIP",
+            "El Peruano Doxeos",
+            "XTREME-DATA PERU"
         ]
         self.AUTHORIZED_USERS = set()  # Usuarios autorizados para privado
     
