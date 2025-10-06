@@ -712,12 +712,18 @@ class RespaldoDoxBot:
         }
         
         try:
-            response = requests.get(url, params=params, timeout=10)
+            # Aumentar timeout a 30 segundos para esta API lenta
+            response = requests.get(url, params=params, timeout=30)
             if response.status_code == 200:
-                return response.json()
+                data = response.json()
+                logger.info(f"API árbol genealógico respondió correctamente para DNI: {dni}")
+                return data
             else:
                 logger.error(f"Error en API de árbol genealógico: {response.status_code}")
                 return None
+        except requests.exceptions.Timeout:
+            logger.error(f"Timeout en API de árbol genealógico para DNI: {dni}")
+            return None
         except Exception as e:
             logger.error(f"Error al consultar API de árbol genealógico: {e}")
             return None
@@ -934,7 +940,8 @@ class RespaldoDoxBot:
             chat_id,
             f"🌳 **Consultando árbol genealógico...**\n"
             f"📄 DNI: `{dni}`\n"
-            "⏳ Por favor espera..."
+            "⏳ Esta consulta puede tardar hasta 30 segundos...\n"
+            "🔄 Por favor espera pacientemente..."
         )
         
         try:
@@ -945,20 +952,35 @@ class RespaldoDoxBot:
             arbol_data = self.consultar_arbol_genealogico(dni)
             
             if arbol_data:
-                # Formatear respuesta
-                response = self.formatear_respuesta_arbol_genealogico(arbol_data, dni, user_display)
-                
-                # Editar mensaje de carga
-                if loading_msg and 'result' in loading_msg:
-                    message_id = loading_msg['result']['message_id']
-                    self.edit_message(chat_id, message_id, response, include_image=True)
+                # Verificar si la respuesta tiene datos válidos
+                if arbol_data.get('success') and arbol_data.get('data'):
+                    # Formatear respuesta
+                    response = self.formatear_respuesta_arbol_genealogico(arbol_data, dni, user_display)
+                    
+                    # Editar mensaje de carga
+                    if loading_msg and 'result' in loading_msg:
+                        message_id = loading_msg['result']['message_id']
+                        self.edit_message(chat_id, message_id, response, include_image=True)
+                else:
+                    # No hay datos en la respuesta
+                    if loading_msg and 'result' in loading_msg:
+                        message_id = loading_msg['result']['message_id']
+                        self.edit_message(
+                            chat_id, message_id,
+                            f"❌ **No se encontró información genealógica** para el DNI: `{dni}`\n\n"
+                            "🔍 Verifica que el número sea correcto e intenta nuevamente.\n\n"
+                            f"🤖 *Consulta realizada por: {user_display}*",
+                            include_image=True
+                        )
             else:
+                # Error en la consulta (timeout, error de conexión, etc.)
                 if loading_msg and 'result' in loading_msg:
                     message_id = loading_msg['result']['message_id']
                     self.edit_message(
                         chat_id, message_id,
-                        f"❌ **Error al consultar** árbol genealógico para DNI: `{dni}`\n\n"
-                        "🔄 Intenta nuevamente en unos momentos.\n\n"
+                        f"⏰ **Timeout en la consulta** del árbol genealógico para DNI: `{dni}`\n\n"
+                        "🔄 La API está tardando más de lo esperado.\n"
+                        "💡 Intenta nuevamente en unos momentos.\n\n"
                         f"🤖 *Consulta realizada por: {user_display}*",
                         include_image=True
                     )
