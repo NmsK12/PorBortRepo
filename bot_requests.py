@@ -86,8 +86,10 @@ class RespaldoDoxBot:
         
     def send_message(self, chat_id, text, reply_markup=None, include_image=True):
         """Enviar mensaje a Telegram"""
+        logger.info(f"send_message llamado: chat_id={chat_id}, include_image={include_image}, is_dni_response={self.is_dni_response(text)}")
         # Si debe incluir imagen y no es una respuesta de DNI, enviar con foto
         if include_image and not self.is_dni_response(text):
+            logger.info("Enviando mensaje con imagen")
             return self.send_message_with_image(chat_id, text, reply_markup)
         
         # Envío normal sin imagen
@@ -1064,15 +1066,21 @@ class RespaldoDoxBot:
             
             # Consultar la API
             arbol_data = self.consultar_arbol_genealogico(dni)
+            logger.info(f"Datos de API recibidos: {arbol_data}")
             
             if arbol_data:
+                logger.info(f"Verificando familiares: {arbol_data.get('FAMILIARES')}")
                 # Verificar si la respuesta tiene familiares
                 if arbol_data.get('FAMILIARES') and len(arbol_data['FAMILIARES']) > 0:
+                    logger.info(f"Encontrados {len(arbol_data['FAMILIARES'])} familiares")
                     # Formatear respuesta
                     response = self.formatear_respuesta_arbol_genealogico(arbol_data, dni, user_display)
+                    logger.info(f"Respuesta formateada: {response[:100]}...")
                     
                     # Enviar nueva respuesta en lugar de editar
-                    self.send_message(chat_id, response, include_image=True)
+                    logger.info(f"Enviando mensaje a chat {chat_id}")
+                    result = self.send_message(chat_id, response, include_image=True)
+                    logger.info(f"Resultado del envío: {result}")
                     
                     # Eliminar mensaje de carga
                     if loading_msg and 'result' in loading_msg:
