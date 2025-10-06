@@ -2,6 +2,8 @@ import requests
 import json
 import time
 import logging
+import threading
+from queue import Queue
 import base64
 from threading import Thread
 
@@ -21,10 +23,60 @@ logger = logging.getLogger(__name__)
 # Diccionario para controlar spam (user_id: timestamp)
 user_cooldowns = {}
 
+# Sistema de cola para consultas
+consulta_queue = Queue()
+consulta_processing = False
+consulta_thread = None
+
 class RespaldoDoxBot:
     def __init__(self):
         self.last_update_id = 0
         self.running = True
+        self.start_consulta_processor()
+    
+    def start_consulta_processor(self):
+        """Iniciar el procesador de consultas en cola"""
+        global consulta_processing, consulta_thread
+        if not consulta_processing:
+            consulta_processing = True
+            consulta_thread = threading.Thread(target=self.process_consulta_queue, daemon=True)
+            consulta_thread.start()
+            logger.info("🔄 Procesador de consultas iniciado")
+    
+    def process_consulta_queue(self):
+        """Procesar consultas en cola"""
+        while consulta_processing:
+            try:
+                if not consulta_queue.empty():
+                    consulta = consulta_queue.get()
+                    self.execute_consulta(consulta)
+                    consulta_queue.task_done()
+                else:
+                    time.sleep(0.5)  # Esperar 500ms antes de verificar nuevamente
+            except Exception as e:
+                logger.error(f"Error procesando consulta: {e}")
+                time.sleep(1)
+    
+    def execute_consulta(self, consulta):
+        """Ejecutar una consulta específica"""
+        try:
+            tipo = consulta['tipo']
+            chat_id = consulta['chat_id']
+            user_id = consulta['user_id']
+            user_info = consulta['user_info']
+            parametros = consulta['parametros']
+            loading_msg = consulta['loading_msg']
+            
+            if tipo == 'dni':
+                self.execute_dni_consulta(chat_id, user_id, user_info, parametros['dni'], loading_msg)
+            elif tipo == 'nombres':
+                self.execute_nombres_consulta(chat_id, user_id, user_info, parametros['nombres'], loading_msg)
+            elif tipo == 'telefono':
+                self.execute_telefono_consulta(chat_id, user_id, user_info, parametros['numero'], loading_msg)
+            elif tipo == 'arbol':
+                self.execute_arbol_consulta(chat_id, user_id, user_info, parametros['dni'], loading_msg)
+        except Exception as e:
+            logger.error(f"Error ejecutando consulta: {e}")
         
     def send_message(self, chat_id, text, reply_markup=None, include_image=True):
         """Enviar mensaje a Telegram"""
@@ -276,14 +328,28 @@ class RespaldoDoxBot:
             )
             return
         
-        # Mostrar mensaje de carga
+        # Mostrar mensaje de carga inmediatamente
         loading_msg = self.send_message(
             chat_id,
             f"🔍 **Consultando información del DNI...**\n"
             f"📄 DNI: `{dni}`\n"
-            "⏳ Por favor espera..."
+            "⏳ Tu consulta está en cola, por favor espera..."
         )
         
+        # Agregar a la cola de consultas
+        consulta = {
+            'tipo': 'dni',
+            'chat_id': chat_id,
+            'user_id': user_id,
+            'user_info': user_info,
+            'parametros': {'dni': dni},
+            'loading_msg': loading_msg
+        }
+        consulta_queue.put(consulta)
+        logger.info(f"Consulta DNI agregada a la cola para usuario {user_id}")
+    
+    def execute_dni_consulta(self, chat_id, user_id, user_info, dni, loading_msg):
+        """Ejecutar consulta DNI en la cola"""
         try:
             # Obtener nombre de usuario para mostrar
             user_display = self.get_user_display_name(user_info)
@@ -754,18 +820,19 @@ class RespaldoDoxBot:
     
     def formatear_respuesta_arbol_genealogico(self, data, dni, user_display):
         """Formatear la respuesta de árbol genealógico"""
-        if not data.get('success') or not data.get('data'):
+        # Verificar si hay familiares en la respuesta
+        if not data.get('FAMILIARES') or not data['FAMILIARES']:
             return f"❌ **No se encontró información genealógica para el DNI: {dni}**\n\n🔍 Verifica el número e intenta nuevamente.\n\n🤖 *Consulta realizada por: {user_display}*"
         
-        arbol_data = data['data']
+        familiares = data['FAMILIARES']
         
         response = f"**[RESPALDODOX-CHOCO] ÁRBOL GENEALÓGICO**\n\n"
         response += f"🆔 **DNI:** `{dni}`\n"
-        response += f"👤 **Persona:** {arbol_data.get('nombre', 'N/A')}\n\n"
+        response += f"📋 **Tipo de consulta:** {data.get('TIPO_CONSULTA', 'N/A')}\n"
+        response += f"🆔 **Request ID:** `{data.get('request_id', 'N/A')}`\n\n"
         
         # Procesar familiares por relación
-        if arbol_data.get('FAMILIARES'):
-            familiares = arbol_data['FAMILIARES']
+        if familiares:
             
             # Agrupar por relación
             relaciones = {}
@@ -785,7 +852,7 @@ class RespaldoDoxBot:
                     response += f"👫 **HERMANOS/AS:**\n"
                 elif relacion == 'HIJO' or relacion == 'HIJA':
                     response += f"👶 **HIJOS/AS:**\n"
-                elif relacion == 'ABUELO' or relacion == 'ABUELA':
+                elif relacion == 'ABUELO' or relacion == 'ABUELA' or relacion == 'ABUELA PATERNO' or relacion == 'ABUELO MATERNO':
                     response += f"👴👵 **ABUELOS/AS:**\n"
                 elif relacion == 'CUÑADO' or relacion == 'CUÑADA':
                     response += f"👨‍👩‍👧‍👦 **CUÑADOS/AS:**\n"
@@ -793,6 +860,12 @@ class RespaldoDoxBot:
                     response += f"👨‍👩‍👧‍👦 **TIOS/AS:**\n"
                 elif relacion == 'PRIMO' or relacion == 'PRIMA':
                     response += f"👨‍👩‍👧‍👦 **PRIMOS/AS:**\n"
+                elif relacion == 'SOBRINO' or relacion == 'SOBRINA':
+                    response += f"👶 **SOBRINOS/AS:**\n"
+                elif relacion == 'NIETO' or relacion == 'NIETA':
+                    response += f"👶 **NIETOS/AS:**\n"
+                elif relacion == 'BISABUELO' or relacion == 'BISABUELA':
+                    response += f"👴👵 **BISABUELOS/AS:**\n"
                 else:
                     response += f"👥 **{relacion.upper()}S:**\n"
                 
@@ -935,15 +1008,29 @@ class RespaldoDoxBot:
             )
             return
         
-        # Enviar mensaje de carga
+        # Mostrar mensaje de carga inmediatamente
         loading_msg = self.send_message(
             chat_id,
             f"🌳 **Consultando árbol genealógico...**\n"
             f"📄 DNI: `{dni}`\n"
-            "⏳ Esta consulta puede tardar hasta 30 segundos...\n"
-            "🔄 Por favor espera pacientemente..."
+            "⏳ Tu consulta está en cola, por favor espera...\n"
+            "🔄 Esta consulta puede tardar hasta 30 segundos..."
         )
         
+        # Agregar a la cola de consultas
+        consulta = {
+            'tipo': 'arbol',
+            'chat_id': chat_id,
+            'user_id': user_id,
+            'user_info': user_info,
+            'parametros': {'dni': dni},
+            'loading_msg': loading_msg
+        }
+        consulta_queue.put(consulta)
+        logger.info(f"Consulta árbol genealógico agregada a la cola para usuario {user_id}")
+    
+    def execute_arbol_consulta(self, chat_id, user_id, user_info, dni, loading_msg):
+        """Ejecutar consulta árbol genealógico en la cola"""
         try:
             # Obtener nombre de usuario para mostrar
             user_display = self.get_user_display_name(user_info)
@@ -952,8 +1039,8 @@ class RespaldoDoxBot:
             arbol_data = self.consultar_arbol_genealogico(dni)
             
             if arbol_data:
-                # Verificar si la respuesta tiene datos válidos
-                if arbol_data.get('success') and arbol_data.get('data'):
+                # Verificar si la respuesta tiene familiares
+                if arbol_data.get('FAMILIARES') and len(arbol_data['FAMILIARES']) > 0:
                     # Formatear respuesta
                     response = self.formatear_respuesta_arbol_genealogico(arbol_data, dni, user_display)
                     
@@ -962,7 +1049,7 @@ class RespaldoDoxBot:
                         message_id = loading_msg['result']['message_id']
                         self.edit_message(chat_id, message_id, response, include_image=True)
                 else:
-                    # No hay datos en la respuesta
+                    # No hay familiares en la respuesta
                     if loading_msg and 'result' in loading_msg:
                         message_id = loading_msg['result']['message_id']
                         self.edit_message(
