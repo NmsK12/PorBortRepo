@@ -1208,7 +1208,8 @@ class RespaldoDoxBot:
                 "❌ <b>Error:</b> El DNI debe tener exactamente 8 dígitos.\n\n"
                 "📝 <b>Uso correcto:</b> `/arg 12345678`\n"
                 "📝 <b>Ejemplo:</b> `/arg 44443333`\n\n"
-                "🤖 *Respaldodox*"
+                "🤖 *Respaldodox*",
+                reply_to_message_id=message_id
             )
             return
         
@@ -1218,7 +1219,8 @@ class RespaldoDoxBot:
             f"🌳 <b>Consultando árbol genealógico...**\n"
             f"📄 DNI: `{dni}`\n"
             "⏳ Esta consulta puede tardar hasta 30 segundos...\n"
-            "🔄 Por favor espera pacientemente..."
+            "🔄 Por favor espera pacientemente...",
+            reply_to_message_id=message_id
         )
         
         try:
