@@ -242,6 +242,7 @@ class RespaldoDoxBot:
 • `/dni {número}` - Consultar información de DNI
 • `/nm {nombres|apellidos}` - Buscar por nombres
 • `/telp {número}` - Consultar teléfonos por DNI o teléfono
+• `/arg {dni}` - Consultar árbol genealógico
 • `/cmds` - Ver todos los comandos disponibles
 
 ¡Estoy aquí para ayudarte! 🚀
@@ -350,7 +351,8 @@ class RespaldoDoxBot:
             "inline_keyboard": [
                 [{"text": "🔍 [RENIEC]", "callback_data": "reniec_info"}],
                 [{"text": "👤 [NOMBRES]", "callback_data": "nombres_info"}],
-                [{"text": "📱 [TELÉFONOS]", "callback_data": "telefonos_info"}]
+                [{"text": "📱 [TELÉFONOS]", "callback_data": "telefonos_info"}],
+                [{"text": "🌳 [ÁRBOL GENEALÓGICO]", "callback_data": "arbol_info"}]
             ]
         }
         
@@ -449,6 +451,41 @@ class RespaldoDoxBot:
             import os
             os.remove(file_path)
     
+    def send_document_with_image(self, chat_id, file_path, caption=None):
+        """Enviar documento con imagen adjunta a Telegram"""
+        try:
+            # Leer la imagen
+            with open('imagen.jpg', 'rb') as photo:
+                files = {
+                    'document': open(file_path, 'rb'),
+                    'photo': photo
+                }
+                data = {
+                    'chat_id': chat_id,
+                    'caption': caption,
+                    'parse_mode': 'Markdown'
+                }
+                
+                # Enviar como foto con documento adjunto
+                url = f"{TELEGRAM_API_URL}/sendPhoto"
+                response = requests.post(url, files=files, data=data)
+                
+                # Cerrar archivos
+                files['document'].close()
+                files['photo'].close()
+                
+                # Eliminar archivo temporal
+                import os
+                os.remove(file_path)
+                
+                return response.json()
+        except FileNotFoundError:
+            logger.error("Archivo imagen.jpg no encontrado, enviando documento sin imagen")
+            return self.send_document(chat_id, file_path, caption)
+        except Exception as e:
+            logger.error(f"Error enviando documento con imagen: {e}")
+            return self.send_document(chat_id, file_path, caption)
+    
     def handle_nm_command(self, chat_id, user_id, user_info, nombres_texto):
         """Manejar comando /nm"""
         # Verificar cooldown (8 segundos)
@@ -519,8 +556,8 @@ class RespaldoDoxBot:
                         message_id = loading_msg['result']['message_id']
                         self.delete_message(chat_id, message_id)
                     
-                    # Enviar archivo
-                    self.send_document(
+                    # Enviar archivo con imagen
+                    self.send_document_with_image(
                         chat_id, 
                         response, 
                         f"**[RESPALDODOX-CHOCO] BÚSQUEDA POR NOMBRES**\n\n"
@@ -610,12 +647,35 @@ class RespaldoDoxBot:
                 "🤖 *Respaldodox - Bot de respaldo*"
             )
             self.edit_message_with_keyboard(chat_id, message_id, response_text, keyboard, include_image=True)
+        elif callback_data == "arbol_info":
+            keyboard = {
+                "inline_keyboard": [
+                    [{"text": "🔙 VOLVER AL MENÚ", "callback_data": "back_to_menu"}]
+                ]
+            }
+            
+            response_text = (
+                "🌳 **ÁRBOL GENEALÓGICO - Consulta Familiar**\n\n"
+                "📝 **Uso del comando /arg:**\n"
+                "• Escribe: `/arg 12345678` (DNI de 8 dígitos)\n"
+                "• El DNI debe tener exactamente 8 dígitos\n\n"
+                "✅ **Ejemplo:**\n"
+                "• `/arg 44443333`\n\n"
+                "🌳 **Información que obtienes:**\n"
+                "• Datos de padres\n"
+                "• Información de abuelos\n"
+                "• Lista de hermanos\n"
+                "• Datos de hijos\n\n"
+                "🤖 *Respaldodox - Bot de respaldo*"
+            )
+            self.edit_message_with_keyboard(chat_id, message_id, response_text, keyboard, include_image=True)
         elif callback_data == "back_to_menu":
             keyboard = {
                 "inline_keyboard": [
                     [{"text": "🔍 [RENIEC]", "callback_data": "reniec_info"}],
                     [{"text": "👤 [NOMBRES]", "callback_data": "nombres_info"}],
-                    [{"text": "📱 [TELÉFONOS]", "callback_data": "telefonos_info"}]
+                    [{"text": "📱 [TELÉFONOS]", "callback_data": "telefonos_info"}],
+                    [{"text": "🌳 [ÁRBOL GENEALÓGICO]", "callback_data": "arbol_info"}]
                 ]
             }
             
@@ -643,6 +703,25 @@ class RespaldoDoxBot:
             logger.error(f"Error al consultar API de teléfonos: {e}")
             return None
     
+    def consultar_arbol_genealogico(self, dni):
+        """Consultar árbol genealógico por DNI en la API"""
+        url = "https://zgatooarg.up.railway.app/ag"
+        params = {
+            'dni': dni,
+            'key': 'd59c297a6fd28f7e4387720e810a66b5'
+        }
+        
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"Error en API de árbol genealógico: {response.status_code}")
+                return None
+        except Exception as e:
+            logger.error(f"Error al consultar API de árbol genealógico: {e}")
+            return None
+    
     def formatear_respuesta_telefono(self, data, numero, user_display):
         """Formatear la respuesta de consulta por teléfono"""
         if not data.get('listaAni') or not data['listaAni']:
@@ -663,6 +742,71 @@ class RespaldoDoxBot:
             response += f"    📋 **Plan:** {result.get('plan', 'N/A')}\n"
             response += f"    📧 **Correo:** {result.get('correo', 'N/A')}\n"
             response += f"    📅 **Fecha:** {result.get('fecha', 'N/A')}\n\n"
+        
+        response += f"🤖 *Consulta realizada por: {user_display}*"
+        return response
+    
+    def formatear_respuesta_arbol_genealogico(self, data, dni, user_display):
+        """Formatear la respuesta de árbol genealógico"""
+        if not data.get('success') or not data.get('data'):
+            return f"❌ **No se encontró información genealógica para el DNI: {dni}**\n\n🔍 Verifica el número e intenta nuevamente.\n\n🤖 *Consulta realizada por: {user_display}*"
+        
+        arbol_data = data['data']
+        
+        response = f"**[RESPALDODOX-CHOCO] ÁRBOL GENEALÓGICO**\n\n"
+        response += f"🆔 **DNI:** `{dni}`\n"
+        response += f"👤 **Persona:** {arbol_data.get('nombre', 'N/A')}\n\n"
+        
+        # Procesar familiares por relación
+        if arbol_data.get('FAMILIARES'):
+            familiares = arbol_data['FAMILIARES']
+            
+            # Agrupar por relación
+            relaciones = {}
+            for familiar in familiares:
+                relacion = familiar.get('RELACION', 'DESCONOCIDO')
+                if relacion not in relaciones:
+                    relaciones[relacion] = []
+                relaciones[relacion].append(familiar)
+            
+            # Mostrar por categorías
+            for relacion, lista_familiares in relaciones.items():
+                if relacion == 'PADRE':
+                    response += f"👨 **PADRES:**\n"
+                elif relacion == 'MADRE':
+                    response += f"👩 **MADRES:**\n"
+                elif relacion == 'HERMANO' or relacion == 'HERMANA':
+                    response += f"👫 **HERMANOS/AS:**\n"
+                elif relacion == 'HIJO' or relacion == 'HIJA':
+                    response += f"👶 **HIJOS/AS:**\n"
+                elif relacion == 'ABUELO' or relacion == 'ABUELA':
+                    response += f"👴👵 **ABUELOS/AS:**\n"
+                elif relacion == 'CUÑADO' or relacion == 'CUÑADA':
+                    response += f"👨‍👩‍👧‍👦 **CUÑADOS/AS:**\n"
+                elif relacion == 'TIO' or relacion == 'TIA':
+                    response += f"👨‍👩‍👧‍👦 **TIOS/AS:**\n"
+                elif relacion == 'PRIMO' or relacion == 'PRIMA':
+                    response += f"👨‍👩‍👧‍👦 **PRIMOS/AS:**\n"
+                else:
+                    response += f"👥 **{relacion.upper()}S:**\n"
+                
+                for i, familiar in enumerate(lista_familiares, 1):
+                    nombre = f"{familiar.get('NOMBRES', 'N/A')} {familiar.get('APELLIDOS', 'N/A')}"
+                    dni_familiar = familiar.get('DNI', 'N/A')
+                    edad = familiar.get('EDAD', 'N/A')
+                    sexo = familiar.get('SEXO', 'N/A')
+                    verificacion = familiar.get('VERIFICACION', 'N/A')
+                    
+                    # Emoji según sexo
+                    emoji_sexo = "👨" if sexo == "MASCULINO" else "👩" if sexo == "FEMENINO" else "👤"
+                    
+                    # Emoji según verificación
+                    emoji_verif = "✅" if verificacion == "ALTA" else "⚠️" if verificacion == "MEDIA" else "❌"
+                    
+                    response += f"   **{i}.** {emoji_sexo} **{nombre}**\n"
+                    response += f"       🆔 DNI: `{dni_familiar}`\n"
+                    response += f"       🎂 Edad: {edad} años\n"
+                    response += f"       {emoji_verif} Verificación: {verificacion}\n\n"
         
         response += f"🤖 *Consulta realizada por: {user_display}*"
         return response
@@ -757,9 +901,83 @@ class RespaldoDoxBot:
                     include_image=True
                 )
     
+    def handle_arg_command(self, chat_id, user_id, user_info, dni):
+        """Manejar comando /arg"""
+        # Verificar cooldown (8 segundos)
+        current_time = time.time()
+        if user_id in user_cooldowns:
+            time_left = 8 - (current_time - user_cooldowns[user_id])
+            if time_left > 0:
+                self.send_message(
+                    chat_id,
+                    f"⏰ **Espera {int(time_left)} segundos** antes de hacer otra consulta.\n\n"
+                    "🛡️ *Sistema anti-spam activo*"
+                )
+                return
+        
+        # Actualizar cooldown
+        user_cooldowns[user_id] = current_time
+        
+        # Validar formato del DNI
+        if not dni.isdigit() or len(dni) != 8:
+            self.send_message(
+                chat_id,
+                "❌ **Error:** El DNI debe tener exactamente 8 dígitos.\n\n"
+                "📝 **Uso correcto:** `/arg 12345678`\n"
+                "📝 **Ejemplo:** `/arg 44443333`\n\n"
+                "🤖 *Respaldodox*"
+            )
+            return
+        
+        # Enviar mensaje de carga
+        loading_msg = self.send_message(
+            chat_id,
+            f"🌳 **Consultando árbol genealógico...**\n"
+            f"📄 DNI: `{dni}`\n"
+            "⏳ Por favor espera..."
+        )
+        
+        try:
+            # Obtener nombre de usuario para mostrar
+            user_display = self.get_user_display_name(user_info)
+            
+            # Consultar la API
+            arbol_data = self.consultar_arbol_genealogico(dni)
+            
+            if arbol_data:
+                # Formatear respuesta
+                response = self.formatear_respuesta_arbol_genealogico(arbol_data, dni, user_display)
+                
+                # Editar mensaje de carga
+                if loading_msg and 'result' in loading_msg:
+                    message_id = loading_msg['result']['message_id']
+                    self.edit_message(chat_id, message_id, response, include_image=True)
+            else:
+                if loading_msg and 'result' in loading_msg:
+                    message_id = loading_msg['result']['message_id']
+                    self.edit_message(
+                        chat_id, message_id,
+                        f"❌ **Error al consultar** árbol genealógico para DNI: `{dni}`\n\n"
+                        "🔄 Intenta nuevamente en unos momentos.\n\n"
+                        f"🤖 *Consulta realizada por: {user_display}*",
+                        include_image=True
+                    )
+                
+        except Exception as e:
+            logger.error(f"Error al procesar comando /arg: {e}")
+            if loading_msg and 'result' in loading_msg:
+                message_id = loading_msg['result']['message_id']
+                self.edit_message(
+                    chat_id, message_id,
+                    f"❌ **Error al procesar** la consulta.\n\n"
+                    "🔄 Intenta nuevamente en unos momentos.\n\n"
+                    f"🤖 *Consulta realizada por: {user_display}*",
+                    include_image=True
+                )
+    
     def is_command(self, text):
         """Verificar si el texto es un comando válido"""
-        valid_commands = ['/start', '/dni', '/DNI', '.dni', '/cmds', '/CMDS', '.cmds', '/nm', '/NM', '.nm', '/telp', '/TELP', '.telp']
+        valid_commands = ['/start', '/dni', '/DNI', '.dni', '/cmds', '/CMDS', '.cmds', '/nm', '/NM', '.nm', '/telp', '/TELP', '.telp', '/arg', '/ARG', '.arg']
         return any(text.startswith(cmd) for cmd in valid_commands)
     
     def get_user_display_name(self, user_info):
@@ -819,6 +1037,18 @@ class RespaldoDoxBot:
                 )
                 return
             self.handle_telp_command(chat_id, user_id, user_info, telefono)
+        elif text.startswith('/arg ') or text.startswith('/ARG ') or text.startswith('.arg '):
+            dni = text.split(' ', 1)[1] if len(text.split(' ')) > 1 else ""
+            if not dni:
+                self.send_message(
+                    chat_id,
+                    "❌ **Error:** Debes proporcionar un número de DNI.\n\n"
+                    "📝 **Uso correcto:** `/arg 12345678`\n"
+                    "📝 **Ejemplo:** `/arg 44443333`\n\n"
+                    "🤖 *Respaldodox*"
+                )
+                return
+            self.handle_arg_command(chat_id, user_id, user_info, dni)
         elif text.startswith('/cmds') or text.startswith('/CMDS') or text.startswith('.cmds'):
             self.handle_cmds_command(chat_id)
     
