@@ -412,7 +412,8 @@ class RespaldoDoxBot:
             chat_id,
             f"🔍 <b>Consultando información del DNI...</b>\n"
             f"📄 DNI: `{dni}`\n"
-            "⏳ Procesando consulta..."
+            "⏳ Procesando consulta...",
+            reply_to_message_id=message_id
         )
         
         try:
@@ -437,28 +438,28 @@ class RespaldoDoxBot:
                         photo_bytes = base64.b64decode(photo_data)
                         
                         # Enviar foto con caption
-                        self.send_photo(chat_id, photo_bytes, response)
+                        self.send_photo(chat_id, photo_bytes, response, reply_to_message_id=message_id)
                         
                         # Eliminar mensaje de carga
                         if loading_msg and 'result' in loading_msg:
-                            message_id = loading_msg['result']['message_id']
-                            self.delete_message(chat_id, message_id)
+                            loading_message_id = loading_msg['result']['message_id']
+                            self.delete_message(chat_id, loading_message_id)
                     except Exception as e:
                         logger.error(f"Error enviando foto: {e}")
                         # Si falla la foto, enviar solo texto
                         if loading_msg and 'result' in loading_msg:
-                            message_id = loading_msg['result']['message_id']
-                            self.edit_message(chat_id, message_id, response, include_image=False)
+                            loading_message_id = loading_msg['result']['message_id']
+                            self.edit_message(chat_id, loading_message_id, response, include_image=False)
                 else:
                     # Sin foto, solo texto
                     if loading_msg and 'result' in loading_msg:
-                        message_id = loading_msg['result']['message_id']
-                        self.edit_message(chat_id, message_id, response, include_image=False)
+                        loading_message_id = loading_msg['result']['message_id']
+                        self.edit_message(chat_id, loading_message_id, response, include_image=False)
             else:
                 if loading_msg and 'result' in loading_msg:
-                    message_id = loading_msg['result']['message_id']
+                    loading_message_id = loading_msg['result']['message_id']
                     self.edit_message(
-                        chat_id, message_id,
+                        chat_id, loading_message_id,
                         f"❌ <b>No se encontró información</b> para el DNI: `{dni}`\n\n"
                         "🔍 Verifica que el número sea correcto e intenta nuevamente.\n\n"
                         f"🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>",
@@ -468,9 +469,9 @@ class RespaldoDoxBot:
         except requests.exceptions.Timeout:
             logger.error(f"Timeout al consultar DNI {dni}")
             if loading_msg and 'result' in loading_msg:
-                message_id = loading_msg['result']['message_id']
+                loading_message_id = loading_msg['result']['message_id']
                 self.edit_message(
-                    chat_id, message_id,
+                    chat_id, loading_message_id,
                     f"⏰ <b>Timeout en la consulta</b> del DNI: `{dni}`\n\n"
                     "🔄 La API está tardando más de 30 segundos.\n"
                     "💡 Intenta nuevamente en unos momentos.\n\n"
@@ -480,9 +481,9 @@ class RespaldoDoxBot:
         except Exception as e:
             logger.error(f"Error al consultar DNI {dni}: {e}")
             if loading_msg and 'result' in loading_msg:
-                message_id = loading_msg['result']['message_id']
+                loading_message_id = loading_msg['result']['message_id']
                 self.edit_message(
-                    chat_id, message_id,
+                    chat_id, loading_message_id,
                     f"❌ <b>Error al consultar</b> el DNI: `{dni}`\n\n"
                     "🔄 Intenta nuevamente en unos momentos.\n\n"
                     f"🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>",
