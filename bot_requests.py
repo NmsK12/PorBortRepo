@@ -530,8 +530,17 @@ class RespaldoDoxBot:
             # Obtener nombre de usuario para mostrar
             user_display = self.get_user_display_name(user_info)
             
+            # Parsear nombres y apellidos del formato "nombres|apellidos"
+            if '|' in nombres:
+                partes = nombres.split('|', 1)
+                nombres_part = partes[0]
+                apellidos_part = partes[1] if len(partes) > 1 else ""
+            else:
+                nombres_part = nombres
+                apellidos_part = ""
+            
             # Consultar la API
-            nombres_data = self.consultar_nombres(nombres)
+            nombres_data = self.consultar_nombres(nombres_part, apellidos_part)
             
             if nombres_data and nombres_data.get('success'):
                 # Formatear respuesta
