@@ -723,37 +723,26 @@ class RespaldoDoxBot:
     def send_document_with_image(self, chat_id, file_path, caption=None):
         """Enviar documento con imagen adjunta a Telegram"""
         try:
-            # Leer la imagen
-            with open('imagen.jpg', 'rb') as photo:
-                files = {
-                    'document': open(file_path, 'rb'),
-                    'photo': photo
-                }
+            # Leer el documento
+            with open(file_path, 'rb') as document:
+                files = {'document': document}
                 data = {
                     'chat_id': chat_id,
                     'caption': caption,
-                    'parse_mode': 'Markdown'
+                    'parse_mode': 'HTML'
                 }
                 
-                # Enviar como foto con documento adjunto
-                url = f"{TELEGRAM_API_URL}/sendPhoto"
+                # Enviar como documento
+                url = f"{TELEGRAM_API_URL}/sendDocument"
                 response = requests.post(url, files=files, data=data)
-                
-                # Cerrar archivos
-                files['document'].close()
-                files['photo'].close()
-                
-                # Eliminar archivo temporal
-                import os
-                os.remove(file_path)
                 
                 return response.json()
         except FileNotFoundError:
-            logger.error("Archivo imagen.jpg no encontrado, enviando documento sin imagen")
-            return self.send_document(chat_id, file_path, caption)
+            logger.error(f"Archivo {file_path} no encontrado")
+            return {'ok': False, 'error': 'File not found'}
         except Exception as e:
-            logger.error(f"Error enviando documento con imagen: {e}")
-            return self.send_document(chat_id, file_path, caption)
+            logger.error(f"Error enviando documento: {e}")
+            return {'ok': False, 'error': str(e)}
     
     def handle_nm_command(self, chat_id, user_id, user_info, nombres_texto):
         """Manejar comando /nm"""
@@ -1338,7 +1327,8 @@ class RespaldoDoxBot:
                     if isinstance(response, str) and response.endswith('.txt'):
                         # Es un archivo, enviarlo como documento
                         logger.info(f"Enviando archivo: {response}")
-                        self.send_document_with_image(chat_id, response, f"🌳 <b>Árbol Genealógico - DNI: {dni}</b>\n\n📊 <b>Total familiares:</b> {len(arbol_data['FAMILIARES'])}\n\n🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>")
+                        caption = f"🌳 <b>Árbol Genealógico - DNI: {dni}</b>\n\n📊 <b>Total familiares:</b> {len(arbol_data['FAMILIARES'])}\n\n📄 <b>Los datos son muy largos, por eso te enviamos un archivo TXT</b>\n\n🤖 <i>Consulta realizada por: {self.escape_html(user_display)}</i>"
+                        self.send_document_with_image(chat_id, response, caption)
                         
                         # Eliminar archivo temporal
                         try:
