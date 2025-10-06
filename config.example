@@ -1,0 +1,12 @@
+# Token del bot de Telegram
+BOT_TOKEN=7735457887:AAF-bzmviBfh5x1kuMe0IQaaP_Ij9VoBpxM
+
+# Claves de las APIs
+API_KEY_DNI=3378f24e438baad1797c5b
+API_KEY_NOMBRES=9d2c423573b857e46235f9c50645f
+API_KEY_TELEFONOS=default
+
+# URLs de las APIs
+API_URL_DNI=https://zgatoodni.up.railway.app/dniresult
+API_URL_NOMBRES=https://zgatoonm.up.railway.app/nm
+API_URL_TELEFONOS=http://161.132.51.34:1520/api/osipteldb

@@ -1,77 +1,91 @@
-# API Consulta DNI (FastAPI)
+# 🤖 Respaldodox - Bot de Telegram
 
-## Requisitos
-- Python 3.10+
-- PowerShell (Windows)
+Bot de Telegram para consultas de DNI, nombres y teléfonos utilizando APIs de RENIEC.
 
-## Instalación
-1. Crear y activar entorno virtual:
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
+## 🚀 Características
 
-2. Instalar dependencias:
-```powershell
-pip install -r requirements.txt
-```
+- ✅ **Comando `/dni`** - Consultar información de DNI con foto
+- ✅ **Comando `/nm`** - Búsqueda por nombres y apellidos
+- ✅ **Comando `/telp`** - Consultas telefónicas por DNI o teléfono
+- ✅ **Comando `/cmds`** - Menú interactivo con botones
+- ✅ **Sistema anti-spam** - 8 segundos entre consultas
+- ✅ **Validación estricta** - DNI (8 dígitos), Teléfono (9 dígitos)
+- ✅ **Respuestas organizadas** - Formato profesional con emojis
+- ✅ **Archivos TXT** - Para resultados extensos
 
-## Configuración
-Crea un archivo `.env` en la raíz del proyecto con tus credenciales:
+## 📱 Comandos Disponibles
 
-```
-INTRA_USER=MRAMOS
-INTRA_PASS=10162706
-# Opcionalmente puedes sobreescribir endpoints y cabeceras
-# LOGIN_URL=https://app.munitacna.gob.pe/intranet/login/login/index
-# DNI_API_URL=https://app.munitacna.gob.pe/intranet/pide/reniecBuscar
-# HTTP_USER_AGENT=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0
-# HTTP_REFERER=https://app.munitacna.gob.pe/intranet/main
-# HTTP_ORIGIN=https://app.munitacna.gob.pe
-```
+### `/start`
+Muestra el mensaje de bienvenida del bot.
 
-## Ejecutar servidor (local)
-```powershell
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
+### `/dni {número}`
+Consulta información de un DNI específico.
+- **Ejemplo:** `/dni 44443333`
+- **Requisito:** El DNI debe tener exactamente 8 dígitos
 
-## Probar endpoints
-- Documentación interactiva: `http://localhost:8000/docs`
-- POST JSON:
-```powershell
-Invoke-RestMethod -Method Post -Uri "http://localhost:8000/consultar-dni" -ContentType 'application/json' -Body '{"dni":"12345678"}'
-```
-- GET con parámetro de ruta:
-```powershell
-Invoke-RestMethod -Method Get -Uri "http://localhost:8000/consultar/dni/12345678"
-```
+### `/nm {nombres|apellidos}`
+Busca personas por nombres y apellidos.
+- **Ejemplo:** `/nm Juan|Perez|Gonzalez`
+- **Múltiples nombres:** `/nm Maria,Jose|Lopez|Martinez`
 
-## Despliegue en Railway
-1. Asegúrate de tener una cuenta en Railway y el repositorio en GitHub.
-2. En Railway, crea un nuevo proyecto y conéctalo a tu repositorio.
-3. Railway detectará Python y el `Procfile`.
-4. Configura variables de entorno en Railway (Settings → Variables):
-   - `INTRA_USER`
-   - `INTRA_PASS`
-   - Opcionales: `LOGIN_URL`, `DNI_API_URL`, `HTTP_USER_AGENT`, `HTTP_REFERER`, `HTTP_ORIGIN`
-5. Despliega. Railway expondrá una URL pública; prueba:
-   - `GET https://<tu-app>.up.railway.app/consultar/dni/12345678`
+### `/telp {número}`
+Consulta información telefónica.
+- **DNI:** `/telp 44443333` (8 dígitos)
+- **Teléfono:** `/telp 987654321` (9 dígitos)
 
-### Notas para Railway
-- El puerto se toma de la variable `PORT` proporcionada por Railway (via `Procfile`).
-- Si necesitas forzar Python 3.10+, añade un archivo `runtime.txt` con `python-3.10.14`.
-- Revisa logs en Railway para depurar login/consultas si algo falla.
+### `/cmds`
+Muestra el menú de comandos con botones interactivos.
 
-## CI/CD con GitHub Actions → Railway
-Este repo incluye `.github/workflows/deploy-railway.yml` para desplegar automáticamente en cada push a `main`.
+## 🛠️ APIs Utilizadas
 
-Configura estos secretos en GitHub (Settings → Secrets and variables → Actions → New repository secret):
-- `RAILWAY_TOKEN` (obligatorio): crea uno en Railway (Account → Tokens).
-- `RAILWAY_SERVICE_NAME` (opcional): nombre exacto del Service (si tienes varios).
-- `RAILWAY_PROJECT_ID` (opcional): ID del proyecto en Railway (para `railway link`).
-- `RAILWAY_SERVICE_ID` (opcional): ID del service en Railway (para `railway link`).
+- **RENIEC DNI:** `https://zgatoodni.up.railway.app/dniresult`
+- **Nombres:** `https://zgatoonm.up.railway.app/nm`
+- **Teléfonos:** `http://161.132.51.34:1520/api/osipteldb`
 
-El workflow hará:
-1. Instalar Railway CLI
-2. Si hay IDs, ejecuta `railway link --project <id>` y `--service <id>`
-3. Desplegar con `railway up` (o `--service <name>` si definiste `RAILWAY_SERVICE_NAME`)
+## 🚀 Despliegue en Railway
+
+1. **Clona el repositorio:**
+   ```bash
+   git clone https://github.com/NmsK12/PorBortRepo.git
+   cd PorBortRepo
+   ```
+
+2. **Instala dependencias:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Configura variables de entorno:**
+   - `BOT_TOKEN`: Token del bot de Telegram
+   - `API_KEY_DNI`: Clave para API de DNI
+   - `API_KEY_NOMBRES`: Clave para API de nombres
+   - `API_KEY_TELEFONOS`: Clave para API de teléfonos
+
+4. **Ejecuta el bot:**
+   ```bash
+   python bot_requests.py
+   ```
+
+## 📦 Dependencias
+
+- `requests==2.31.0`
+- `python-telegram-bot==20.8`
+
+## 🔧 Configuración
+
+El bot está configurado para funcionar con:
+- **Python 3.11+**
+- **Railway** para despliegue
+- **APIs externas** para consultas
+
+## 📝 Notas
+
+- El bot maneja automáticamente los errores de las APIs
+- Los mensajes incluyen emojis para mejor experiencia de usuario
+- Soporte completo para fotos en formato base64
+- Interfaz responsive con botones interactivos
+- Sistema anti-spam para evitar abuso
+
+---
+
+🤖 **Respaldodox v2.0** - Bot de respaldo para consultas de DNI

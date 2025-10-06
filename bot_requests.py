@@ -1,0 +1,807 @@
+import requests
+import json
+import time
+import logging
+import base64
+from threading import Thread
+
+# Configuración del bot
+BOT_TOKEN = "7735457887:AAF-bzmviBfh5x1kuMe0IQaaP_Ij9VoBpxM"
+API_BASE_URL = "https://zgatoodni.up.railway.app/dniresult"
+API_KEY = "3378f24e438baad1797c5b"
+TELEGRAM_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
+
+# Configurar logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+# Diccionario para controlar spam (user_id: timestamp)
+user_cooldowns = {}
+
+class RespaldoDoxBot:
+    def __init__(self):
+        self.last_update_id = 0
+        self.running = True
+        
+    def send_message(self, chat_id, text, reply_markup=None):
+        """Enviar mensaje a Telegram"""
+        url = f"{TELEGRAM_API_URL}/sendMessage"
+        data = {
+            'chat_id': chat_id,
+            'text': text,
+            'parse_mode': 'Markdown'
+        }
+        if reply_markup:
+            data['reply_markup'] = json.dumps(reply_markup)
+        
+        try:
+            response = requests.post(url, json=data)
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error enviando mensaje: {e}")
+            return None
+    
+    def send_photo(self, chat_id, photo_bytes, caption=None):
+        """Enviar foto a Telegram"""
+        url = f"{TELEGRAM_API_URL}/sendPhoto"
+        files = {'photo': ('dni_photo.jpg', photo_bytes, 'image/jpeg')}
+        data = {'chat_id': chat_id}
+        if caption:
+            data['caption'] = caption
+            data['parse_mode'] = 'Markdown'
+        
+        try:
+            response = requests.post(url, files=files, data=data)
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error enviando foto: {e}")
+            return None
+    
+    def edit_message(self, chat_id, message_id, text):
+        """Editar mensaje existente"""
+        url = f"{TELEGRAM_API_URL}/editMessageText"
+        data = {
+            'chat_id': chat_id,
+            'message_id': message_id,
+            'text': text,
+            'parse_mode': 'Markdown'
+        }
+        
+        try:
+            response = requests.post(url, json=data)
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error editando mensaje: {e}")
+            return None
+    
+    def edit_message_with_keyboard(self, chat_id, message_id, text, keyboard):
+        """Editar mensaje existente con teclado"""
+        url = f"{TELEGRAM_API_URL}/editMessageText"
+        data = {
+            'chat_id': chat_id,
+            'message_id': message_id,
+            'text': text,
+            'parse_mode': 'Markdown',
+            'reply_markup': json.dumps(keyboard)
+        }
+        
+        try:
+            response = requests.post(url, json=data)
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error editando mensaje con teclado: {e}")
+            return None
+    
+    def delete_message(self, chat_id, message_id):
+        """Eliminar mensaje"""
+        url = f"{TELEGRAM_API_URL}/deleteMessage"
+        data = {
+            'chat_id': chat_id,
+            'message_id': message_id
+        }
+        
+        try:
+            response = requests.post(url, json=data)
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error eliminando mensaje: {e}")
+            return None
+    
+    def get_updates(self):
+        """Obtener actualizaciones de Telegram"""
+        url = f"{TELEGRAM_API_URL}/getUpdates"
+        params = {
+            'offset': self.last_update_id + 1,
+            'timeout': 30
+        }
+        
+        try:
+            response = requests.get(url, params=params)
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error obteniendo updates: {e}")
+            return None
+    
+    def consultar_dni(self, dni):
+        """Consultar información del DNI en la API"""
+        url = f"{API_BASE_URL}?dni={dni}&key={API_KEY}"
+        
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                return data
+            else:
+                logger.error(f"API error: {response.status_code}")
+                return None
+        except Exception as e:
+            logger.error(f"Error al consultar API: {e}")
+            return None
+    
+    def formatear_respuesta_dni(self, data, dni, user_info):
+        """Formatear la respuesta de la API para mostrar"""
+        if not data.get('data'):
+            return f"❌ **El DNI {dni} no se encontró en el sistema RENIEC**\n\n🔍 Verifica que el número sea correcto e intenta nuevamente.\n\n🤖 *Consulta realizada por: {user_info}*"
+        
+        data_info = data['data']
+        
+        response = f"""
+**[RESPALDODOX-CHOCO] RENIEC ONLINE**
+
+🆔 **DNI ➾ {data_info.get('DNI', dni)}**
+👤 **NOMBRES ➾ {data_info.get('NOMBRES', 'N/A')}**
+👥 **APELLIDOS ➾ {data_info.get('APELLIDOS', 'N/A')}**
+⚧ **GÉNERO ➾ {data_info.get('GENERO', 'N/A')}**
+🎂 **EDAD ➾ {data_info.get('EDAD', 'N/A')}**
+💍 **ESTADO CIVIL ➾ {data_info.get('ESTADO_CIVIL', 'N/A')}**
+⚠️ **RESTRICCIÓN ➾ {data_info.get('RESTRICCION', 'N/A')}**
+
+📅 **FECHA NACIMIENTO ➾ {data_info.get('FECHA_NACIMIENTO', 'N/A')}**
+👨 **PADRE ➾ {data_info.get('PADRE', 'N/A')}**
+👩 **MADRE ➾ {data_info.get('MADRE', 'N/A')}**
+
+📝 **FECHA INSCRIPCIÓN ➾ {data_info.get('FECHA_INSCRIPCION', 'N/A')}**
+📄 **FECHA EMISIÓN ➾ {data_info.get('FECHA_EMISION', 'N/A')}**
+⏰ **FECHA CADUCIDAD ➾ {data_info.get('FECHA_CADUCIDAD', 'N/A')}**
+🎓 **NIVEL EDUCATIVO ➾ {data_info.get('NIVEL_EDUCATIVO', 'N/A')}**
+📏 **ESTATURA ➾ {data_info.get('ESTATURA', 'N/A')}**
+❤️ **DONANTE ÓRGANOS ➾ {data_info.get('DONANTE_ORGANOS', 'N/A')}**
+
+🏠 **DIRECCIÓN ➾ {data_info.get('DIRECCION', 'N/A')}**
+🏘️ **DISTRITO ➾ {data_info.get('DISTRITO', 'N/A')}**
+🏛️ **PROVINCIA ➾ {data_info.get('PROVINCIA', 'N/A')}**
+🌍 **DEPARTAMENTO ➾ {data_info.get('DEPARTAMENTO', 'N/A')}**
+
+🔢 **UBIGEO RENIEC ➾ {data_info.get('UBIGEO_RENIEC', 'N/A')}**
+🔢 **UBIGEO INEI ➾ {data_info.get('UBIGEO_INE', 'N/A')}**
+🔢 **UBIGEO SUNAT ➾ {data_info.get('UBIGEO_SUNAT', 'N/A')}**
+
+🤖 *Consulta realizada por: {user_info}*
+"""
+        return response
+    
+    def handle_start_command(self, chat_id):
+        """Manejar comando /start"""
+        welcome_message = """
+🤖 **BOT DE RESPALDO DOX v2.0**
+
+¡Hola! Soy **Respaldodox**, tu asistente para consultas de DNI.
+
+📋 **Comandos disponibles:**
+• `/dni {número}` - Consultar información de DNI
+• `/nm {nombres|apellidos}` - Buscar por nombres
+• `/telp {número}` - Consultar teléfonos por DNI o teléfono
+• `/cmds` - Ver todos los comandos disponibles
+
+¡Estoy aquí para ayudarte! 🚀
+        """
+        
+        self.send_message(chat_id, welcome_message)
+    
+    def handle_dni_command(self, chat_id, user_id, dni):
+        """Manejar comando /dni"""
+        # Verificar cooldown (8 segundos)
+        current_time = time.time()
+        if user_id in user_cooldowns:
+            time_left = 8 - (current_time - user_cooldowns[user_id])
+            if time_left > 0:
+                self.send_message(
+                    chat_id,
+                    f"⏰ **Espera {int(time_left)} segundos** antes de hacer otra consulta.\n\n"
+                    "🛡️ *Sistema anti-spam activo*"
+                )
+                return
+        
+        # Actualizar cooldown
+        user_cooldowns[user_id] = current_time
+        
+        # Validar que sea un número
+        if not dni.isdigit() or len(dni) != 8:
+            self.send_message(
+                chat_id,
+                "❌ **Error:** El DNI debe ser un número de 8 dígitos.\n\n"
+                "📝 **Ejemplo:** `/dni 12345678`"
+            )
+            return
+        
+        # Mostrar mensaje de carga
+        loading_msg = self.send_message(
+            chat_id,
+            f"🔍 **Consultando información del DNI...**\n"
+            f"📄 DNI: `{dni}`\n"
+            "⏳ Por favor espera..."
+        )
+        
+        try:
+            # Obtener información del usuario
+            user_info = f"@{user_id}" if user_id else "Usuario"
+            
+            # Consultar la API
+            dni_data = self.consultar_dni(dni)
+            
+            if dni_data and dni_data.get('success'):
+                # Formatear respuesta
+                response = self.formatear_respuesta_dni(dni_data, dni, user_info)
+                
+                # Si hay foto, enviarla primero
+                if dni_data.get('photo_base64'):
+                    try:
+                        # Decodificar imagen base64
+                        photo_data = dni_data['photo_base64']
+                        if photo_data.startswith('data:image'):
+                            photo_data = photo_data.split(',')[1]
+                        
+                        photo_bytes = base64.b64decode(photo_data)
+                        
+                        # Enviar foto con caption
+                        self.send_photo(chat_id, photo_bytes, response)
+                        
+                        # Eliminar mensaje de carga
+                        if loading_msg and 'result' in loading_msg:
+                            message_id = loading_msg['result']['message_id']
+                            self.delete_message(chat_id, message_id)
+                    except Exception as e:
+                        logger.error(f"Error enviando foto: {e}")
+                        # Si falla la foto, enviar solo texto
+                        if loading_msg and 'result' in loading_msg:
+                            message_id = loading_msg['result']['message_id']
+                            self.edit_message(chat_id, message_id, response)
+                else:
+                    # Sin foto, solo texto
+                    if loading_msg and 'result' in loading_msg:
+                        message_id = loading_msg['result']['message_id']
+                        self.edit_message(chat_id, message_id, response)
+            else:
+                if loading_msg and 'result' in loading_msg:
+                    message_id = loading_msg['result']['message_id']
+                    self.edit_message(
+                        chat_id, message_id,
+                        f"❌ **No se encontró información** para el DNI: `{dni}`\n\n"
+                        "🔍 Verifica que el número sea correcto e intenta nuevamente.\n\n"
+                        f"🤖 *Consulta realizada por: {user_info}*"
+                    )
+                
+        except Exception as e:
+            logger.error(f"Error al consultar DNI {dni}: {e}")
+            if loading_msg and 'result' in loading_msg:
+                message_id = loading_msg['result']['message_id']
+                self.edit_message(
+                    chat_id, message_id,
+                    f"❌ **Error al consultar** el DNI: `{dni}`\n\n"
+                    "🔄 Intenta nuevamente en unos momentos."
+                )
+    
+    def handle_cmds_command(self, chat_id):
+        """Manejar comando /cmds"""
+        keyboard = {
+            "inline_keyboard": [
+                [{"text": "🔍 [RENIEC]", "callback_data": "reniec_info"}],
+                [{"text": "👤 [NOMBRES]", "callback_data": "nombres_info"}],
+                [{"text": "📱 [TELÉFONOS]", "callback_data": "telefonos_info"}]
+            ]
+        }
+        
+        message = """
+**[RESPALDODOX-CHOCO]**
+
+📋 **COMANDOS DISPONIBLES, PRESIONA UN BOTÓN**
+
+🤖 **Respaldodox** - Tu asistente para consultas de DNI
+        """
+        
+        self.send_message(chat_id, message, keyboard)
+    
+    def consultar_nombres(self, nombres, apellidos):
+        """Consultar información por nombres en la API"""
+        url = "https://zgatoonm.up.railway.app/nm"
+        params = {
+            'nombres': nombres,
+            'apellidos': apellidos,
+            'key': '9d2c423573b857e46235f9c50645f'
+        }
+        
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                return data
+            else:
+                logger.error(f"API error: {response.status_code}")
+                return None
+        except Exception as e:
+            logger.error(f"Error al consultar API de nombres: {e}")
+            return None
+    
+    def formatear_respuesta_nombres(self, data, nombres_busqueda, user_info):
+        """Formatear la respuesta de búsqueda por nombres"""
+        if not data.get('data') or not data['data'].get('results'):
+            return f"❌ **No se encontraron resultados para: {nombres_busqueda}**\n\n🔍 Verifica los nombres e intenta nuevamente.\n\n🤖 *Consulta realizada por: {user_info}*"
+        
+        results = data['data']['results']
+        
+        if len(results) <= 10:
+            # Mostrar hasta 10 resultados en el chat
+            response = f"**[RESPALDODOX-CHOCO] BÚSQUEDA POR NOMBRES**\n\n"
+            response += f"🔍 **Búsqueda:** `{nombres_busqueda}`\n"
+            response += f"📊 **Resultados encontrados:** {len(results)}\n\n"
+            
+            for i, result in enumerate(results, 1):
+                response += f"**{i}.** 👤 **{result.get('nombres', 'N/A')} {result.get('apellidos', 'N/A')}**\n"
+                response += f"    🆔 DNI: `{result.get('dni', 'N/A')}`\n"
+                response += f"    🎂 Edad: {result.get('edad', 'N/A')}\n\n"
+            
+            response += f"🤖 *Consulta realizada por: {user_info}*"
+            return response
+        else:
+            # Crear archivo TXT para más de 10 resultados
+            return self.crear_archivo_nombres(results, nombres_busqueda, user_info)
+    
+    def crear_archivo_nombres(self, results, nombres_busqueda, user_info):
+        """Crear archivo TXT con los resultados de nombres"""
+        content = f"[RESPALDODOX-CHOCO] BÚSQUEDA POR NOMBRES\n\n"
+        content += f"Búsqueda: {nombres_busqueda}\n"
+        content += f"Resultados encontrados: {len(results)}\n\n"
+        
+        for i, result in enumerate(results, 1):
+            content += f"{i}. {result.get('nombres', 'N/A')} {result.get('apellidos', 'N/A')}\n"
+            content += f"   DNI: {result.get('dni', 'N/A')}\n"
+            content += f"   Edad: {result.get('edad', 'N/A')}\n\n"
+        
+        content += f"Consulta realizada por: {user_info}"
+        
+        # Crear archivo temporal
+        filename = f"nombres_{int(time.time())}.txt"
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        return filename
+    
+    def send_document(self, chat_id, file_path, caption=None):
+        """Enviar documento a Telegram"""
+        url = f"{TELEGRAM_API_URL}/sendDocument"
+        files = {'document': open(file_path, 'rb')}
+        data = {'chat_id': chat_id}
+        if caption:
+            data['caption'] = caption
+        
+        try:
+            response = requests.post(url, files=files, data=data)
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error enviando documento: {e}")
+            return None
+        finally:
+            # Cerrar y eliminar archivo
+            files['document'].close()
+            import os
+            os.remove(file_path)
+    
+    def handle_nm_command(self, chat_id, user_id, nombres_texto):
+        """Manejar comando /nm"""
+        # Verificar cooldown (8 segundos)
+        current_time = time.time()
+        if user_id in user_cooldowns:
+            time_left = 8 - (current_time - user_cooldowns[user_id])
+            if time_left > 0:
+                self.send_message(
+                    chat_id,
+                    f"⏰ **Espera {int(time_left)} segundos** antes de hacer otra consulta.\n\n"
+                    "🛡️ *Sistema anti-spam activo*"
+                )
+                return
+        
+        # Actualizar cooldown
+        user_cooldowns[user_id] = current_time
+        
+        # Procesar nombres y apellidos
+        try:
+            # Separar por | para nombres y apellidos
+            partes = nombres_texto.split('|')
+            if len(partes) < 2:
+                self.send_message(
+                    chat_id,
+                    "❌ **Error:** Formato incorrecto.\n\n"
+                    "📝 **Uso correcto:** `/nm Pedro|Castillo|Terrones`\n"
+                    "📝 **Ejemplo:** `/nm Juan|Perez|Gonzalez`\n\n"
+                    "🤖 *Respaldodox*"
+                )
+                return
+            
+            nombres = partes[0].strip()
+            apellidos = '|'.join(partes[1:]).strip()
+            
+            if not nombres or not apellidos:
+                self.send_message(
+                    chat_id,
+                    "❌ **Error:** Debes proporcionar nombres y apellidos.\n\n"
+                    "📝 **Uso correcto:** `/nm Pedro|Castillo|Terrones`\n"
+                    "📝 **Ejemplo:** `/nm Juan|Perez|Gonzalez`\n\n"
+                    "🤖 *Respaldodox*"
+                )
+                return
+            
+            # Mostrar mensaje de carga
+            loading_msg = self.send_message(
+                chat_id,
+                f"🔍 **Buscando por nombres...**\n"
+                f"👤 Nombres: `{nombres}`\n"
+                f"👥 Apellidos: `{apellidos}`\n"
+                "⏳ Por favor espera..."
+            )
+            
+            # Obtener información del usuario
+            user_info = f"@{user_id}" if user_id else "Usuario"
+            
+            # Consultar la API
+            nombres_data = self.consultar_nombres(nombres, apellidos)
+            
+            if nombres_data:
+                # Formatear respuesta
+                response = self.formatear_respuesta_nombres(nombres_data, nombres_texto, user_info)
+                
+                # Si es un archivo, enviarlo
+                if isinstance(response, str) and response.endswith('.txt'):
+                    # Eliminar mensaje de carga
+                    if loading_msg and 'result' in loading_msg:
+                        message_id = loading_msg['result']['message_id']
+                        self.delete_message(chat_id, message_id)
+                    
+                    # Enviar archivo
+                    self.send_document(
+                        chat_id, 
+                        response, 
+                        f"**[RESPALDODOX-CHOCO] BÚSQUEDA POR NOMBRES**\n\n"
+                        f"🔍 **Búsqueda:** {nombres_texto}\n"
+                        f"📊 **Resultados:** {len(nombres_data['data']['results'])}\n\n"
+                        f"🤖 *Consulta realizada por: {user_info}*"
+                    )
+                else:
+                    # Mostrar texto normal
+                    if loading_msg and 'result' in loading_msg:
+                        message_id = loading_msg['result']['message_id']
+                        self.edit_message(chat_id, message_id, response)
+            else:
+                if loading_msg and 'result' in loading_msg:
+                    message_id = loading_msg['result']['message_id']
+                    self.edit_message(
+                        chat_id, message_id,
+                        f"❌ **Error al buscar** nombres: `{nombres_texto}`\n\n"
+                        "🔄 Intenta nuevamente en unos momentos.\n\n"
+                        f"🤖 *Consulta realizada por: {user_info}*"
+                    )
+                
+        except Exception as e:
+            logger.error(f"Error al procesar comando /nm: {e}")
+            self.send_message(
+                chat_id,
+                f"❌ **Error al procesar** la búsqueda.\n\n"
+                "🔄 Intenta nuevamente en unos momentos.\n\n"
+                "🤖 *Respaldodox*"
+            )
+    
+    def handle_callback_query(self, chat_id, message_id, callback_data):
+        """Manejar callbacks de botones"""
+        if callback_data == "reniec_info":
+            keyboard = {
+                "inline_keyboard": [
+                    [{"text": "🔙 VOLVER AL MENÚ", "callback_data": "back_to_menu"}]
+                ]
+            }
+            
+            response_text = (
+                "🔍 **RENIEC - Consulta de DNI**\n\n"
+                "📝 **Uso del comando /dni:**\n"
+                "• Escribe: `/dni 12345678`\n"
+                "• Reemplaza `12345678` con el DNI que quieres consultar\n"
+                "• El DNI debe tener exactamente 8 dígitos\n\n"
+                "✅ **Ejemplo:** `/dni 44443333`\n\n"
+                "🤖 *Respaldodox - Bot de respaldo*"
+            )
+            self.edit_message_with_keyboard(chat_id, message_id, response_text, keyboard)
+        elif callback_data == "nombres_info":
+            keyboard = {
+                "inline_keyboard": [
+                    [{"text": "🔙 VOLVER AL MENÚ", "callback_data": "back_to_menu"}]
+                ]
+            }
+            
+            response_text = (
+                "👤 **NOMBRES - Búsqueda por Nombres**\n\n"
+                "📝 **Uso del comando /nm:**\n"
+                "• Escribe: `/nm Pedro|Castillo|Terrones`\n"
+                "• Separa nombres y apellidos con |\n"
+                "• Puedes usar múltiples nombres: `/nm Juan,Pedro|Perez|Gonzalez`\n\n"
+                "✅ **Ejemplos:**\n"
+                "• `/nm Juan|Perez|Gonzalez`\n"
+                "• `/nm Maria,Jose|Lopez|Martinez`\n\n"
+                "🤖 *Respaldodox - Bot de respaldo*"
+            )
+            self.edit_message_with_keyboard(chat_id, message_id, response_text, keyboard)
+        elif callback_data == "telefonos_info":
+            keyboard = {
+                "inline_keyboard": [
+                    [{"text": "🔙 VOLVER AL MENÚ", "callback_data": "back_to_menu"}]
+                ]
+            }
+            
+            response_text = (
+                "📱 **TELÉFONOS - Consulta Telefónica**\n\n"
+                "📝 **Uso del comando /telp:**\n"
+                "• Escribe: `/telp 12345678` (DNI de 8 dígitos)\n"
+                "• Escribe: `/telp 987654321` (Teléfono de 9 dígitos)\n"
+                "• El número debe tener exactamente 8 o 9 dígitos\n\n"
+                "✅ **Ejemplos:**\n"
+                "• `/telp 44443333` (DNI)\n"
+                "• `/telp 987654321` (Teléfono)\n\n"
+                "🤖 *Respaldodox - Bot de respaldo*"
+            )
+            self.edit_message_with_keyboard(chat_id, message_id, response_text, keyboard)
+        elif callback_data == "back_to_menu":
+            keyboard = {
+                "inline_keyboard": [
+                    [{"text": "🔍 [RENIEC]", "callback_data": "reniec_info"}],
+                    [{"text": "👤 [NOMBRES]", "callback_data": "nombres_info"}],
+                    [{"text": "📱 [TELÉFONOS]", "callback_data": "telefonos_info"}]
+                ]
+            }
+            
+            response_text = (
+                "**[RESPALDODOX-CHOCO]**\n\n"
+                "📋 **COMANDOS DISPONIBLES, PRESIONA UN BOTÓN**\n\n"
+                "🤖 **Respaldodox** - Tu asistente para consultas de DNI"
+            )
+            self.edit_message_with_keyboard(chat_id, message_id, response_text, keyboard)
+    
+    def consultar_telefono(self, numero):
+        """Consultar información por teléfono o DNI en la API"""
+        url = "http://161.132.51.34:1520/api/osipteldb"
+        params = {'tel': numero}
+        
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                return data
+            else:
+                logger.error(f"API error: {response.status_code}")
+                return None
+        except Exception as e:
+            logger.error(f"Error al consultar API de teléfonos: {e}")
+            return None
+    
+    def formatear_respuesta_telefono(self, data, numero, user_info):
+        """Formatear la respuesta de consulta por teléfono"""
+        if not data.get('listaAni') or not data['listaAni']:
+            return f"❌ **No se encontró información para: {numero}**\n\n🔍 Verifica el número e intenta nuevamente.\n\n🤖 *Consulta realizada por: {user_info}*"
+        
+        results = data['listaAni']
+        
+        response = f"**[RESPALDODOX-CHOCO] CONSULTA TELEFÓNICA**\n\n"
+        response += f"🔍 **Consulta:** `{numero}`\n"
+        response += f"📊 **Resultados encontrados:** {len(results)}\n\n"
+        
+        for i, result in enumerate(results, 1):
+            response += f"**{i}.** 📱 **{result.get('telefono', 'N/A')}**\n"
+            response += f"    👤 **Titular:** {result.get('titular', 'N/A')}\n"
+            response += f"    🆔 **DNI:** `{result.get('documento', 'N/A')}`\n"
+            response += f"    🏢 **Empresa:** {result.get('empresa', 'N/A')}\n"
+            response += f"    📡 **Operador:** {result.get('operador', 'N/A')}\n"
+            response += f"    📋 **Plan:** {result.get('plan', 'N/A')}\n"
+            response += f"    📧 **Correo:** {result.get('correo', 'N/A')}\n"
+            response += f"    📅 **Fecha:** {result.get('fecha', 'N/A')}\n\n"
+        
+        response += f"🤖 *Consulta realizada por: {user_info}*"
+        return response
+    
+    def handle_telp_command(self, chat_id, user_id, numero):
+        """Manejar comando /telp"""
+        # Verificar cooldown (8 segundos)
+        current_time = time.time()
+        if user_id in user_cooldowns:
+            time_left = 8 - (current_time - user_cooldowns[user_id])
+            if time_left > 0:
+                self.send_message(
+                    chat_id,
+                    f"⏰ **Espera {int(time_left)} segundos** antes de hacer otra consulta.\n\n"
+                    "🛡️ *Sistema anti-spam activo*"
+                )
+                return
+        
+        # Actualizar cooldown
+        user_cooldowns[user_id] = current_time
+        
+        # Validar formato del número
+        if not numero.isdigit():
+            self.send_message(
+                chat_id,
+                "❌ **Error:** El número debe contener solo dígitos.\n\n"
+                "📝 **Uso correcto:** `/telp 12345678` (DNI de 8 dígitos)\n"
+                "📝 **Uso correcto:** `/telp 987654321` (Teléfono de 9 dígitos)\n"
+                "📝 **Ejemplo:** `/telp 44443333`\n\n"
+                "🤖 *Respaldodox*"
+            )
+            return
+        
+        # Validar longitud
+        if len(numero) == 8:
+            tipo_consulta = "DNI"
+        elif len(numero) == 9:
+            tipo_consulta = "Teléfono"
+        else:
+            self.send_message(
+                chat_id,
+                f"❌ **Error:** El número debe tener 8 dígitos (DNI) o 9 dígitos (teléfono).\n\n"
+                f"📝 **Recibido:** {len(numero)} dígitos\n"
+                f"📝 **Debe ser:** 8 dígitos para DNI o 9 dígitos para teléfono\n\n"
+                "🤖 *Respaldodox*"
+            )
+            return
+        
+        # Obtener información del usuario
+        user_info = f"@{user_id}" if user_id else "Usuario"
+        
+        # Mostrar mensaje de carga
+        loading_msg = self.send_message(
+            chat_id,
+            f"🔍 **Consultando {tipo_consulta.lower()}...**\n"
+            f"📞 {tipo_consulta}: `{numero}`\n"
+            "⏳ Por favor espera..."
+        )
+        
+        try:
+            # Consultar la API
+            telefono_data = self.consultar_telefono(numero)
+            
+            if telefono_data:
+                # Formatear respuesta
+                response = self.formatear_respuesta_telefono(telefono_data, numero, user_info)
+                
+                # Editar mensaje de carga
+                if loading_msg and 'result' in loading_msg:
+                    message_id = loading_msg['result']['message_id']
+                    self.edit_message(chat_id, message_id, response)
+            else:
+                if loading_msg and 'result' in loading_msg:
+                    message_id = loading_msg['result']['message_id']
+                    self.edit_message(
+                        chat_id, message_id,
+                        f"❌ **Error al consultar** {tipo_consulta.lower()}: `{numero}`\n\n"
+                        "🔄 Intenta nuevamente en unos momentos.\n\n"
+                        f"🤖 *Consulta realizada por: {user_info}*"
+                    )
+                
+        except Exception as e:
+            logger.error(f"Error al procesar comando /telp: {e}")
+            if loading_msg and 'result' in loading_msg:
+                message_id = loading_msg['result']['message_id']
+                self.edit_message(
+                    chat_id, message_id,
+                    f"❌ **Error al procesar** la consulta.\n\n"
+                    "🔄 Intenta nuevamente en unos momentos.\n\n"
+                    f"🤖 *Consulta realizada por: {user_info}*"
+                )
+    
+    def is_command(self, text):
+        """Verificar si el texto es un comando válido"""
+        valid_commands = ['/start', '/dni', '/DNI', '.dni', '/cmds', '/CMDS', '.cmds', '/nm', '/NM', '.nm', '/telp', '/TELP', '.telp']
+        return any(text.startswith(cmd) for cmd in valid_commands)
+    
+    def handle_message(self, chat_id, user_id, text):
+        """Manejar mensajes de texto"""
+        # Solo procesar comandos válidos
+        if not self.is_command(text):
+            return  # Ignorar mensajes que no son comandos
+        
+        if text.startswith('/start'):
+            self.handle_start_command(chat_id)
+        elif text.startswith('/dni ') or text.startswith('/DNI ') or text.startswith('.dni '):
+            dni = text.split(' ', 1)[1] if len(text.split(' ')) > 1 else ""
+            if not dni:
+                self.send_message(
+                    chat_id,
+                    "❌ **Error:** Debes proporcionar un número de DNI.\n\n"
+                    "📝 **Uso correcto:** `/dni 12345678`\n"
+                    "📝 **Ejemplo:** `/dni 44443333`\n\n"
+                    "🤖 *Respaldodox*"
+                )
+                return
+            self.handle_dni_command(chat_id, user_id, dni)
+        elif text.startswith('/nm ') or text.startswith('/NM ') or text.startswith('.nm '):
+            nombres = text.split(' ', 1)[1] if len(text.split(' ')) > 1 else ""
+            if not nombres:
+                self.send_message(
+                    chat_id,
+                    "❌ **Error:** Debes proporcionar nombres y apellidos.\n\n"
+                    "📝 **Uso correcto:** `/nm Pedro|Castillo|Terrones`\n"
+                    "📝 **Ejemplo:** `/nm Juan|Perez|Gonzalez`\n\n"
+                    "🤖 *Respaldodox*"
+                )
+                return
+            self.handle_nm_command(chat_id, user_id, nombres)
+        elif text.startswith('/telp ') or text.startswith('/TELP ') or text.startswith('.telp '):
+            telefono = text.split(' ', 1)[1] if len(text.split(' ')) > 1 else ""
+            if not telefono:
+                self.send_message(
+                    chat_id,
+                    "❌ **Error:** Debes proporcionar un DNI o teléfono.\n\n"
+                    "📝 **Uso correcto:** `/telp 12345678` (DNI de 8 dígitos)\n"
+                    "📝 **Uso correcto:** `/telp 987654321` (Teléfono de 9 dígitos)\n"
+                    "📝 **Ejemplo:** `/telp 44443333`\n\n"
+                    "🤖 *Respaldodox*"
+                )
+                return
+            self.handle_telp_command(chat_id, user_id, telefono)
+        elif text.startswith('/cmds') or text.startswith('/CMDS') or text.startswith('.cmds'):
+            self.handle_cmds_command(chat_id)
+    
+    def process_update(self, update):
+        """Procesar una actualización de Telegram"""
+        try:
+            if 'message' in update:
+                message = update['message']
+                chat_id = message['chat']['id']
+                user_id = message['from']['id']
+                text = message.get('text', '')
+                
+                if text:
+                    self.handle_message(chat_id, user_id, text)
+            
+            elif 'callback_query' in update:
+                callback_query = update['callback_query']
+                chat_id = callback_query['message']['chat']['id']
+                message_id = callback_query['message']['message_id']
+                callback_data = callback_query['data']
+                
+                self.handle_callback_query(chat_id, message_id, callback_data)
+                
+        except Exception as e:
+            logger.error(f"Error procesando update: {e}")
+    
+    def run(self):
+        """Ejecutar el bot"""
+        logger.info("🤖 Iniciando Respaldodox...")
+        
+        while self.running:
+            try:
+                updates = self.get_updates()
+                
+                if updates and updates.get('ok'):
+                    for update in updates.get('result', []):
+                        self.last_update_id = update['update_id']
+                        self.process_update(update)
+                
+                time.sleep(1)  # Esperar 1 segundo entre consultas
+                
+            except KeyboardInterrupt:
+                logger.info("🤖 Deteniendo Respaldodox...")
+                self.running = False
+            except Exception as e:
+                logger.error(f"Error en el loop principal: {e}")
+                time.sleep(5)  # Esperar 5 segundos antes de reintentar
+
+if __name__ == "__main__":
+    bot = RespaldoDoxBot()
+    bot.run()
